@@ -5,7 +5,7 @@
  * An open source application development framework for PHP 5.1.6 or newer
  *
  * @package		CodeIgniter
- * @author		ExpressionEngine Dev Team
+ * @author		ExpressionEngine Dev Team and Darren Hill <dchill42@gmail.com>, St. Petersburg College
  * @copyright	Copyright (c) 2008 - 2011, EllisLab, Inc.
  * @license		http://codeigniter.com/user_guide/license.html
  * @link		http://codeigniter.com
@@ -22,7 +22,7 @@
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
- * @author		ExpressionEngine Dev Team
+ * @author		ExpressionEngine Dev Team and Darren Hill <dchill42@gmail.com>, St. Petersburg College
  * @category	Loader
  * @link		http://codeigniter.com/user_guide/libraries/loader.html
  */
@@ -30,14 +30,14 @@ class CI_Loader {
 
 	// All these are set automatically. Don't mess with them.
 	protected $_ci_ob_level;
-	protected $_ci_view_paths		= array();
+	protected $_ci_autoload;
 	protected $_ci_library_paths	= array();
-	protected $_ci_model_paths		= array();
-	protected $_ci_helper_paths		= array();
+	protected $_ci_mvc_paths		= array();
 	protected $_base_classes		= array(); // Set by the controller class
 	protected $_ci_cached_vars		= array();
 	protected $_ci_classes			= array();
 	protected $_ci_loaded_files		= array();
+	protected $_ci_controllers		= array();
 	protected $_ci_models			= array();
 	protected $_ci_helpers			= array();
 	protected $_ci_varmap			= array('unit_test' => 'unit', 
@@ -46,34 +46,52 @@ class CI_Loader {
 	/**
 	 * Constructor
 	 *
-	 * Sets the path to the view files and gets the initial output buffering level
+	 * Sets default package paths, gets the initial output buffering level,
+	 * and autoloads additional paths and config files
 	 */
 	public function __construct()
 	{
 		$this->_ci_ob_level  = ob_get_level();
 		$this->_ci_library_paths = array(APPPATH, BASEPATH);
-		$this->_ci_helper_paths = array(APPPATH, BASEPATH);
-		$this->_ci_model_paths = array(APPPATH);
-		$this->_ci_view_paths = array(APPPATH.'views/'	=> TRUE);
-		
-		log_message('debug', "Loader Class Initialized");
-	}
+		$this->_ci_mvc_paths = array(APPPATH => TRUE);
 
-	// --------------------------------------------------------------------
-	
-	/**
-	 * Set _base_classes variable
-	 *
-	 * This method is called once in CI_Controller.
-	 *
-	 * @param 	array 	
-	 * @return 	object
-	 */
-	public function set_base_classes()
-	{
-		$this->_base_classes =& is_loaded();
+		// Fetch autoloader array
+		if (defined('ENVIRONMENT') AND file_exists(APPPATH.'config/'.ENVIRONMENT.'/autoload.php'))
+		{
+			include_once(APPPATH.'config/'.ENVIRONMENT.'/autoload.php');
+		}
+		else
+		{
+			include_once(APPPATH.'config/autoload.php');
+		}
 		
-		return $this;
+		// Check for array
+		if (isset($autoload))
+		{
+			// Save config for ci_autoload
+			$this->_ci_autoload = $autoload;
+
+			// Autoload packages
+			if (isset($autoload['packages']))
+			{
+				foreach ($autoload['packages'] as $package_path)
+				{
+					$this->add_package_path($package_path);
+				}
+			}
+
+			// Load any custom config files
+			if (count($autoload['config']) > 0)
+			{
+				$CI =& get_instance();
+				foreach ($autoload['config'] as $key => $val)
+				{
+					$CI->config->load($val);
+				}
+			}
+		}
+		
+		log_message('debug', 'Loader Class Initialized');
 	}
 
 	// --------------------------------------------------------------------
@@ -141,6 +159,93 @@ class CI_Loader {
 	// --------------------------------------------------------------------
 
 	/**
+	 * Controller Loader
+	 *
+	 * This function lets users load and instantiate (sub)controllers.
+	 *
+	 * @access	public
+	 * @param	string	the name of the class
+	 * @param	string	name for the controller
+	 * @return	void
+	 */
+	public function controller($controller, $name = '')
+	{
+		// Delegate multiples
+		if (is_array($controller))
+		{
+			foreach($controller as $item)
+			{
+				$this->controller($item);
+			}
+			return;
+		}
+
+		// Check for missing class
+		if ($controller == '')
+		{
+			return;
+		}
+
+		$path = '';
+
+		// Is the controller in a sub-folder? If so, parse out the filename and path.
+		if (($last_slash = strrpos($controller, '/')) !== FALSE)
+		{
+			// The path is in front of the last slash
+			$path = substr($controller, 0, $last_slash + 1);
+
+			// And the controller name behind it
+			$controller = substr($controller, $last_slash + 1);
+		}
+
+		// Set name if not provided
+		if ($name == '')
+		{
+			$name = $controller;
+		}
+
+		// Check if already loaded
+		if (in_array($name, $this->_ci_controllers, TRUE))
+		{
+			return;
+		}
+
+		// Check for name conflict
+		$CI =& get_instance();
+		if (isset($CI->$name))
+		{
+			show_error('The controller name you are loading is the name of a resource that is already being used: '.$name);
+		}
+
+		// Search MVC paths for controller
+		$controller = strtolower($controller);
+		$file = 'controllers/'.$path.$controller.'.php';
+		foreach ($this->_ci_mvc_paths as $ctlr_path => $view_cascade)
+		{
+			// Check each path for filename
+			if ( ! file_exists($ctlr_path.$file))
+			{
+				continue;
+			}
+
+			// Include source and instantiate object
+			require_once($ctlr_path.$file);
+
+			$controller = ucfirst($controller);
+
+			$CI->$name = new $controller();
+
+			$this->_ci_controllers[] = $name;
+			return;
+		}
+
+		// Couldn't find the controller
+		show_error('Unable to locate the controller you have specified: '.$controller);
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
 	 * Model Loader
 	 *
 	 * This function lets users load and instantiate models.
@@ -152,6 +257,7 @@ class CI_Loader {
 	 */
 	public function model($model, $name = '', $db_conn = FALSE)
 	{
+		// Delegate multiples
 		if (is_array($model))
 		{
 			foreach ($model as $babe)
@@ -161,6 +267,7 @@ class CI_Loader {
 			return;
 		}
 
+		// Check for missing class
 		if ($model == '')
 		{
 			return;
@@ -178,47 +285,67 @@ class CI_Loader {
 			$model = substr($model, $last_slash + 1);
 		}
 
+		// Set name if not provided
 		if ($name == '')
 		{
 			$name = $model;
 		}
 
+		// Check if already loaded
 		if (in_array($name, $this->_ci_models, TRUE))
 		{
 			return;
 		}
 
+		// Check for name conflict
 		$CI =& get_instance();
 		if (isset($CI->$name))
 		{
 			show_error('The model name you are loading is the name of a resource that is already being used: '.$name);
 		}
 
-		$model = strtolower($model);
-
-		foreach ($this->_ci_model_paths as $mod_path)
+		// Load database if needed
+		if ($db_conn !== FALSE AND ! class_exists('CI_DB'))
 		{
-			if ( ! file_exists($mod_path.'models/'.$path.$model.'.php'))
+			if ($db_conn === TRUE)
+			{
+				$db_conn = '';
+			}
+
+			$CI->load->database($db_conn, FALSE, TRUE);
+		}
+
+		// Load base class(es) if not already done
+		if ( ! class_exists('CI_Model'))
+		{
+			// Load core base class
+			load_class('Model', 'core');
+
+			// Search for model subclass
+			$file = 'core/'.$CI->config->item('subclass_prefix').'Model.php';
+			foreach ($this->_ci_mvc_paths as $mod_path => $view_cascade)
+			{
+				if (file_exists($mod_path.$file))
+				{
+					require $mod_path.$file;
+					break;
+				}
+			}
+		}
+
+		// Search MVC paths for model
+		$model = strtolower($model);
+		$file = 'models/'.$path.$model.'.php';
+		foreach ($this->_ci_mvc_paths as $mod_path => $view_cascade)
+		{
+			// Check each path for filename
+			if ( ! file_exists($mod_path.$file))
 			{
 				continue;
 			}
 
-			if ($db_conn !== FALSE AND ! class_exists('CI_DB'))
-			{
-				if ($db_conn === TRUE)
-				{
-					$db_conn = '';
-				}
-
-				$CI->load->database($db_conn, FALSE, TRUE);
-			}
-
-			if ( ! class_exists('CI_Model'))
-			{
-				load_class('Model', 'core');
-			}
-
-			require_once($mod_path.'models/'.$path.$model.'.php');
+			// Include source and instantiate object
+			require_once($mod_path.$file);
 
 			$model = ucfirst($model);
 
@@ -228,7 +355,7 @@ class CI_Loader {
 			return;
 		}
 
-		// couldn't find the model
+		// Couldn't find the model
 		show_error('Unable to locate the model you have specified: '.$model);
 	}
 
@@ -398,52 +525,70 @@ class CI_Loader {
 	 */
 	public function helper($helpers = array())
 	{
-		foreach ($this->_ci_prep_filename($helpers, '_helper') as $helper)
+		// Delegate multiples
+		if (is_array($helpers))
 		{
-			if (isset($this->_ci_helpers[$helper]))
+			foreach ($helpers as $helper)
 			{
-				continue;
+				$this->helper($helper);
 			}
+			return;
+		}
 
-			$ext_helper = APPPATH.'helpers/'.config_item('subclass_prefix').$helper.'.php';
+		// Prep filename
+		$helper = $this->_ci_prep_filename($helpers, '_helper');
 
-			// Is this a helper extension request?
+		// Check if already loaded
+		if (isset($this->_ci_helpers[$helper]))
+		{
+			return;
+		}
+
+		// Is this a helper extension request?
+		$file = 'helpers/'.config_item('subclass_prefix').$helper.'.php';
+		foreach ($this->_ci_library_paths as $path)
+		{
+			// Check each path for extension
+			$ext_helper = $path.$file;
 			if (file_exists($ext_helper))
 			{
+				// Extension found - require base class
 				$base_helper = BASEPATH.'helpers/'.$helper.'.php';
-
 				if ( ! file_exists($base_helper))
 				{
 					show_error('Unable to load the requested file: helpers/'.$helper.'.php');
 				}
 
+				// Include extension followed by base, so extension overrides base functions
 				include_once($ext_helper);
 				include_once($base_helper);
 
+				// Mark as loaded and return
 				$this->_ci_helpers[$helper] = TRUE;
 				log_message('debug', 'Helper loaded: '.$helper);
-				continue;
-			}
-
-			// Try to load the helper
-			foreach ($this->_ci_helper_paths as $path)
-			{
-				if (file_exists($path.'helpers/'.$helper.'.php'))
-				{
-					include_once($path.'helpers/'.$helper.'.php');
-
-					$this->_ci_helpers[$helper] = TRUE;
-					log_message('debug', 'Helper loaded: '.$helper);
-					break;
-				}
-			}
-
-			// unable to load the helper
-			if ( ! isset($this->_ci_helpers[$helper]))
-			{
-				show_error('Unable to load the requested file: helpers/'.$helper.'.php');
+				return;
 			}
 		}
+
+		// Try to load the helper
+		$file = 'helpers/'.$helper.'.php';
+		foreach ($this->_ci_library_paths as $path)
+		{
+			// Check each path for helper
+			if (file_exists($path.$file))
+			{
+				// Include helper
+				include_once($path.$file);
+
+				// Mark as loaded and return
+				$this->_ci_helpers[$helper] = TRUE;
+				log_message('debug', 'Helper loaded: '.$helper);
+				return;
+			}
+		}
+
+		// Unable to load the helper
+		show_error('Unable to load the requested file: helpers/'.$helper.'.php');
 	}
 
 	// --------------------------------------------------------------------
@@ -535,25 +680,26 @@ class CI_Loader {
 	/**
 	 * Add Package Path
 	 *
-	 * Prepends a parent path to the library, model, helper, and config path arrays
+	 * Prepends a parent path to the library, mvc, and config path arrays
 	 *
-	 * @param	string
-	 * @param 	boolean 	
+	 * @param	string  path
+	 * @param 	boolean view cascade flag
 	 * @return	void
 	 */
-	public function add_package_path($path, $view_cascade=TRUE)
+	public function add_package_path($path, $view_cascade = TRUE)
 	{
-		$path = rtrim($path, '/').'/';
+		// Resolve path
+		$path = $this->_ci_resolve_path($path);
 		
+		// Prepend path to library/helper paths
 		array_unshift($this->_ci_library_paths, $path);
-		array_unshift($this->_ci_model_paths, $path);
-		array_unshift($this->_ci_helper_paths, $path);
 
-		$this->_ci_view_paths = array($path.'views/' => $view_cascade) + $this->_ci_view_paths;
+		// Add MVC path with view cascade param
+		$this->_ci_mvc_paths = array($path => $view_cascade) + $this->_ci_mvc_paths;
 
-		// Add config file path
-		$config =& $this->_ci_get_component('config');
-		array_unshift($config->_config_paths, $path);
+		// Prepend config file path
+		$CI =& get_instance();
+		array_unshift($CI->config->_config_paths, $path);
 	}
 
 	// --------------------------------------------------------------------
@@ -563,12 +709,12 @@ class CI_Loader {
 	 *
 	 * Return a list of all package paths, by default it will ignore BASEPATH.
 	 *
-	 * @param	string
+	 * @param	boolean include base path flag
 	 * @return	void
 	 */
 	public function get_package_paths($include_base = FALSE)
 	{
-		return $include_base === TRUE ? $this->_ci_library_paths : $this->_ci_model_paths;
+		return $include_base === TRUE ? $this->_ci_library_paths : array_keys($this->_ci_mvc_paths);
 	}
 
 	// --------------------------------------------------------------------
@@ -576,52 +722,93 @@ class CI_Loader {
 	/**
 	 * Remove Package Path
 	 *
-	 * Remove a path from the library, model, and helper path arrays if it exists
+	 * Remove a path from the library, mvc, and config path arrays if it exists
 	 * If no path is provided, the most recently added path is removed.
 	 *
-	 * @param	type
-	 * @return	type
+	 * @param	string  path
+	 * @param   boolean remove from config path flag
+	 * @return	void
 	 */
 	public function remove_package_path($path = '', $remove_config_path = TRUE)
 	{
-		$config =& $this->_ci_get_component('config');
+		$CI =& get_instance();
 
 		if ($path == '')
 		{
-			$void = array_shift($this->_ci_library_paths);
-			$void = array_shift($this->_ci_model_paths);
-			$void = array_shift($this->_ci_helper_paths);
-			$void = array_shift($this->_ci_view_paths);
-			$void = array_shift($config->_config_paths);
+			// Shift last added path from each list
+			array_shift($this->_ci_library_paths);
+			array_shift($this->_ci_mvc_paths);
+			if ($remove_config_path)
+			{
+				array_shift($CI->config->_config_paths);
+			}
+			return;
 		}
-		else
+
+		// Resolve path
+		$path = $this->_ci_resolve_path($path);
+
+		// Prevent app path removal - it is a default for all lists
+		if ($path == APPPATH)
 		{
-			$path = rtrim($path, '/').'/';
-			foreach (array('_ci_library_paths', '_ci_model_paths', '_ci_helper_paths') as $var)
-			{
-				if (($key = array_search($path, $this->{$var})) !== FALSE)
-				{
-					unset($this->{$var}[$key]);
-				}
-			}
-			
-			if (isset($this->_ci_view_paths[$path.'views/']))
-			{
-				unset($this->_ci_view_paths[$path.'views/']);
-			}
+			return;
+		}
 
-			if (($key = array_search($path, $config->_config_paths)) !== FALSE)
+		// Unset from library/helper list unless base path
+		if ($path != BASEPATH && ($key = array_search($path, $this->_ci_library_paths)) !== FALSE)
+		{
+			unset($this->_ci_library_paths[$key]);
+		}
+
+		// Unset path from MVC list
+		if (isset($this->_ci_mvc_paths[$path]))
+		{
+			unset($this->_ci_mvc_paths[$path]);
+		}
+
+		// Unset path from config list
+		if ($remove_config_path && ($key = array_search($path, $CI->config->_config_paths)) !== FALSE)
+		{
+			unset($CI->config->_config_paths[$key]);
+		}
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Resolves package path
+	 *
+	 * This function is used to identify absolute paths in the filesystem and include path
+	 *
+	 * @access	protected
+	 * @param	string  initial path
+	 * @return	string  resolved path
+	 */
+	protected function _ci_resolve_path($path)
+	{
+		// Assert trailing slash
+		$path = rtrim($path, '/\\').'/';
+
+		// See if path exists as-is
+		if (file_exists($path))
+		{
+			return $path;
+		}
+
+		// Strip any leading slash and pair with include directories
+		$dir = ltrim($path, "/\\");
+		foreach (explode(PATH_SEPARATOR, get_include_path()) as $include)
+		{
+			$include = rtrim($include, "/\\");
+			if (file_exists($include.'/'.$dir))
 			{
-				unset($config->_config_paths[$key]);
+				// Found include path - clean up and return
+				return $include.'/'.$dir;
 			}
 		}
 
-		// make sure the application default paths are still in the array
-		$this->_ci_library_paths = array_unique(array_merge($this->_ci_library_paths, array(APPPATH, BASEPATH)));
-		$this->_ci_helper_paths = array_unique(array_merge($this->_ci_helper_paths, array(APPPATH, BASEPATH)));
-		$this->_ci_model_paths = array_unique(array_merge($this->_ci_model_paths, array(APPPATH)));
-		$this->_ci_view_paths = array_merge($this->_ci_view_paths, array(APPPATH.'views/' => TRUE));
-		$config->_config_paths = array_unique(array_merge($config->_config_paths, array(APPPATH)));
+		// If we got here, it's not a real path - just return as-is
+		return $path;
 	}
 
 	// --------------------------------------------------------------------
@@ -657,11 +844,11 @@ class CI_Loader {
 			$_ci_ext = pathinfo($_ci_view, PATHINFO_EXTENSION);
 			$_ci_file = ($_ci_ext == '') ? $_ci_view.'.php' : $_ci_view;
 
-			foreach ($this->_ci_view_paths as $view_file => $cascade)
+			foreach ($this->_ci_mvc_paths as $view_file => $cascade)
 			{
-				if (file_exists($view_file.$_ci_file))
+				if (file_exists($view_file.'views/'.$_ci_file))
 				{
-					$_ci_path = $view_file.$_ci_file;
+					$_ci_path = $view_file.'views/'.$_ci_file;
 					$file_exists = TRUE;
 					break;
 				}
@@ -796,44 +983,49 @@ class CI_Loader {
 		// We'll test for both lowercase and capitalized versions of the file name
 		foreach (array(ucfirst($class), strtolower($class)) as $class)
 		{
-			$subclass = APPPATH.'libraries/'.$subdir.config_item('subclass_prefix').$class.'.php';
-
-			// Is this a class extension request?
-			if (file_exists($subclass))
+			$pre = config_item('subclass_prefix');
+			$file = 'libraries/'.$subdir.$pre.$class.'.php';
+			foreach ($this->_ci_library_paths as $path)
 			{
-				$baseclass = BASEPATH.'libraries/'.ucfirst($class).'.php';
-
-				if ( ! file_exists($baseclass))
+				// Is this a class extension request?
+				$subclass = APPPATH.$file;
+				if (file_exists($subclass))
 				{
-					log_message('error', "Unable to load the requested class: ".$class);
-					show_error("Unable to load the requested class: ".$class);
-				}
-
-				// Safety:  Was the class already loaded by a previous call?
-				if (in_array($subclass, $this->_ci_loaded_files))
-				{
-					// Before we deem this to be a duplicate request, let's see
-					// if a custom object name is being supplied.  If so, we'll
-					// return a new instance of the object
-					if ( ! is_null($object_name))
+					// Found extension - require base class
+					$baseclass = BASEPATH.'libraries/'.ucfirst($class).'.php';
+					if ( ! file_exists($baseclass))
 					{
-						$CI =& get_instance();
-						if ( ! isset($CI->$object_name))
-						{
-							return $this->_ci_init_class($class, config_item('subclass_prefix'), $params, $object_name);
-						}
+						log_message('error', 'Unable to load the requested class: '.$class);
+						show_error('Unable to load the requested class: '.$class);
 					}
 
-					$is_duplicate = TRUE;
-					log_message('debug', $class." class already loaded. Second attempt ignored.");
-					return;
+					// Safety:  Was the class already loaded by a previous call?
+					if (in_array($subclass, $this->_ci_loaded_files))
+					{
+						// Before we deem this to be a duplicate request, let's see
+						// if a custom object name is being supplied.  If so, we'll
+						// return a new instance of the object
+						if ( ! is_null($object_name))
+						{
+							$CI =& get_instance();
+							if ( ! isset($CI->$object_name))
+							{
+								return $this->_ci_init_class($class, $pre, $params, $object_name);
+							}
+						}
+
+						$is_duplicate = TRUE;
+						log_message('debug', $class.' class already loaded. Second attempt ignored.');
+						return;
+					}
+
+					// Include base class followed by subclass for inheritance
+					include_once($baseclass);
+					include_once($subclass);
+					$this->_ci_loaded_files[] = $subclass;
+
+					return $this->_ci_init_class($class, $pre, $params, $object_name);
 				}
-
-				include_once($baseclass);
-				include_once($subclass);
-				$this->_ci_loaded_files[] = $subclass;
-
-				return $this->_ci_init_class($class, config_item('subclass_prefix'), $params, $object_name);
 			}
 
 			// Lets search for the requested library file and load it.
@@ -864,7 +1056,7 @@ class CI_Loader {
 					}
 
 					$is_duplicate = TRUE;
-					log_message('debug', $class." class already loaded. Second attempt ignored.");
+					log_message('debug', $class.' class already loaded. Second attempt ignored.');
 					return;
 				}
 
@@ -886,8 +1078,8 @@ class CI_Loader {
 		// We do not issue errors if the load call failed due to a duplicate request
 		if ($is_duplicate == FALSE)
 		{
-			log_message('error', "Unable to load the requested class: ".$class);
-			show_error("Unable to load the requested class: ".$class);
+			log_message('error', 'Unable to load the requested class: '.$class);
+			show_error('Unable to load the requested class: '.$class);
 		}
 	}
 
@@ -903,17 +1095,17 @@ class CI_Loader {
 	 */
 	protected function _ci_init_class($class, $prefix = '', $config = FALSE, $object_name = NULL)
 	{
+		$CI =& get_instance();
+
 		// Is there an associated config file for this class?  Note: these should always be lowercase
 		if ($config === NULL)
 		{
-			// Fetch the config paths containing any package paths
-			$config_component = $this->_ci_get_component('config');
-
-			if (is_array($config_component->_config_paths))
+			// Check all the config paths
+			if (is_array($CI->config->_config_paths))
 			{
 				// Break on the first found file, thus package files
 				// are not overridden by default paths
-				foreach ($config_component->_config_paths as $path)
+				foreach ($CI->config->_config_paths as $path)
 				{
 					// We test for both uppercase and lowercase, for servers that
 					// are case-sensitive with regard to file names. Check for environment
@@ -965,8 +1157,8 @@ class CI_Loader {
 		// Is the class name valid?
 		if ( ! class_exists($name))
 		{
-			log_message('error', "Non-existent class: ".$name);
-			show_error("Non-existent class: ".$class);
+			log_message('error', 'Non-existent class: '.$name);
+			show_error('Non-existent class: '.$class);
 		}
 
 		// Set the variable name we will assign the class to
@@ -986,7 +1178,6 @@ class CI_Loader {
 		$this->_ci_classes[$class] = $classvar;
 
 		// Instantiate the class
-		$CI =& get_instance();
 		if ($config !== NULL)
 		{
 			$CI->$classvar = new $name($config);
@@ -1005,7 +1196,7 @@ class CI_Loader {
 	 * The config/autoload.php file contains an array that permits sub-systems,
 	 * libraries, and helpers to be loaded automatically.
 	 *
-	 * This function is public, as it's used in the CI_Controller class.  
+	 * This function is public, as it's called from CodeIgniter.php.
 	 * However, there is no reason you should ever needs to use it.
 	 *
 	 * @param	array
@@ -1013,77 +1204,58 @@ class CI_Loader {
 	 */
 	public function ci_autoloader()
 	{
-		if (defined('ENVIRONMENT') AND file_exists(APPPATH.'config/'.ENVIRONMENT.'/autoload.php'))
-		{
-			include_once(APPPATH.'config/'.ENVIRONMENT.'/autoload.php');
-		}
-		else
-		{
-			include_once(APPPATH.'config/autoload.php');
-		}
-		
+		// Set base classes to prevent overwriting core modules
+		$this->_base_classes =& is_loaded();
 
-		if ( ! isset($autoload))
+		// Check for autoload array
+		if ( ! isset($this->_ci_autoload))
 		{
 			return FALSE;
-		}
-
-		// Autoload packages
-		if (isset($autoload['packages']))
-		{
-			foreach ($autoload['packages'] as $package_path)
-			{
-				$this->add_package_path($package_path);
-			}
-		}
-
-		// Load any custom config file
-		if (count($autoload['config']) > 0)
-		{
-			$CI =& get_instance();
-			foreach ($autoload['config'] as $key => $val)
-			{
-				$CI->config->load($val);
-			}
 		}
 
 		// Autoload helpers and languages
 		foreach (array('helper', 'language') as $type)
 		{
-			if (isset($autoload[$type]) AND count($autoload[$type]) > 0)
+			if (isset($this->_ci_autoload[$type]) AND count($this->_ci_autoload[$type]) > 0)
 			{
-				$this->$type($autoload[$type]);
+				$this->$type($this->_ci_autoload[$type]);
 			}
 		}
 
 		// A little tweak to remain backward compatible
-		// The $autoload['core'] item was deprecated
-		if ( ! isset($autoload['libraries']) AND isset($autoload['core']))
+		// The $this->_ci_autoload['core'] item was deprecated
+		if ( ! isset($this->_ci_autoload['libraries']) AND isset($this->_ci_autoload['core']))
 		{
-			$autoload['libraries'] = $autoload['core'];
+			$this->_ci_autoload['libraries'] = $this->_ci_autoload['core'];
 		}
 
 		// Load libraries
-		if (isset($autoload['libraries']) AND count($autoload['libraries']) > 0)
+		if (isset($this->_ci_autoload['libraries']) AND count($this->_ci_autoload['libraries']) > 0)
 		{
 			// Load the database driver.
-			if (in_array('database', $autoload['libraries']))
+			if (in_array('database', $this->_ci_autoload['libraries']))
 			{
 				$this->database();
-				$autoload['libraries'] = array_diff($autoload['libraries'], array('database'));
+				$this->_ci_autoload['libraries'] = array_diff($this->_ci_autoload['libraries'], array('database'));
 			}
 
 			// Load all other libraries
-			foreach ($autoload['libraries'] as $item)
+			foreach ($this->_ci_autoload['libraries'] as $item)
 			{
 				$this->library($item);
 			}
 		}
 
-		// Autoload models
-		if (isset($autoload['model']))
+		// Autoload controllers
+		if (isset($this->_ci_autoload['controller']))
 		{
-			$this->model($autoload['model']);
+			$this->controller($this->_ci_autoload['controller']);
+		}
+
+		// Autoload models
+		if (isset($this->_ci_autoload['model']))
+		{
+			$this->model($this->_ci_autoload['model']);
 		}
 	}
 

@@ -47,20 +47,19 @@ class CI_Input {
 	 */
 	public function __construct()
 	{
-		log_message('debug', "Input Class Initialized");
+		log_message('debug', 'Input Class Initialized');
 
 		$this->_allow_get_array	= (config_item('allow_get_array') === TRUE);
 		$this->_enable_xss		= (config_item('global_xss_filtering') === TRUE);
 		$this->_enable_csrf		= (config_item('csrf_protection') === TRUE);
 
-		global $SEC;
-		$this->security =& $SEC;
+		$CI =& get_instance();
+		$this->security =& $CI->security;
 
 		// Do we need the UTF-8 class?
 		if (UTF8_ENABLED === TRUE)
 		{
-			global $UNI;
-			$this->uni =& $UNI;
+			$this->uni =& $CI->utf8;
 		}
 
 		// Sanitize global arrays

@@ -130,15 +130,30 @@
 
 /*
  * ------------------------------------------------------
+ *  Load the application root
+ * ------------------------------------------------------
+ */
+
+	// Load the root class
+	require BASEPATH.'core/Root.php';
+
+	function &get_instance()
+	{
+		return CI_Root::get_instance();
+	}
+	$CI =& get_instance();
+
+/*
+ * ------------------------------------------------------
  *  Instantiate the config class
  * ------------------------------------------------------
  */
-	$CFG =& load_class('Config', 'core');
+	$CI->load_core('Config');
 
 	// Do we have any manually set config items in the index.php file?
 	if (isset($assign_to_config))
 	{
-		$CFG->_assign_to_config($assign_to_config);
+		$CI->config->_assign_to_config($assign_to_config);
 	}
 
 /*
@@ -153,27 +168,27 @@
  *
  */
 
-	$UNI =& load_class('Utf8', 'core');
+	$CI->load_core('Utf8');
 
 /*
  * ------------------------------------------------------
  *  Instantiate the URI class
  * ------------------------------------------------------
  */
-	$URI =& load_class('URI', 'core');
+	$CI->load_core('URI');
 
 /*
  * ------------------------------------------------------
  *  Instantiate the routing class and set the routing
  * ------------------------------------------------------
  */
-	$RTR =& load_class('Router', 'core');
-	$RTR->_set_routing();
+	$CI->load_core('Router');
+	$CI->router->_set_routing();
 
 	// Set any routing overrides that may exist in the main index file
 	if (isset($routing))
 	{
-		$RTR->_set_overrides($routing);
+		$CI->router->_set_overrides($routing);
 	}
 
 /*
@@ -181,7 +196,7 @@
  *  Instantiate the output class
  * ------------------------------------------------------
  */
-	$OUT =& load_class('Output', 'core');
+	$CI->load_core('Output');
 
 /*
  * ------------------------------------------------------
@@ -190,7 +205,7 @@
  */
 	if ($EXT->_call_hook('cache_override') === FALSE)
 	{
-		if ($OUT->_display_cache($CFG, $URI) == TRUE)
+		if ($CI->output->_display_cache($CI->config, $CI->uri) == TRUE)
 		{
 			exit;
 		}
@@ -201,51 +216,70 @@
  * Load the security class for xss and csrf support
  * -----------------------------------------------------
  */
-	$SEC =& load_class('Security', 'core');
+	$CI->load_core('Security');
 
 /*
  * ------------------------------------------------------
  *  Load the Input class and sanitize globals
  * ------------------------------------------------------
  */
-	$IN	=& load_class('Input', 'core');
+	$CI->load_core('Input');
 
 /*
  * ------------------------------------------------------
  *  Load the Language class
  * ------------------------------------------------------
  */
-	$LANG =& load_class('Lang', 'core');
+	$CI->load_core('Lang');
 
 /*
  * ------------------------------------------------------
- *  Load the app controller and local controller
+ *  Autoload libraries, etc.
  * ------------------------------------------------------
- *
  */
-	// Load the base controller class
+
+	$CI->load->ci_autoloader();
+
+/*
+ * ------------------------------------------------------
+ *  Load the local controller
+ * ------------------------------------------------------
+ */
+
+	// Load the Controller base class
 	require BASEPATH.'core/Controller.php';
 
-	function &get_instance()
+	// Load the Controller subclass, if found
+	$file = 'core/'.$CI->config->item('subclass_prefix').'Controller.php';
+	$packages = $CI->load->get_package_paths();
+	foreach ($packages as $path)
 	{
-		return CI_Controller::get_instance();
-	}
-
-
-	if (file_exists(APPPATH.'core/'.$CFG->config['subclass_prefix'].'Controller.php'))
-	{
-		require APPPATH.'core/'.$CFG->config['subclass_prefix'].'Controller.php';
+		if (file_exists($path.$file))
+		{
+			require $path.$file;
+			break;
+		}
 	}
 
 	// Load the local application controller
 	// Note: The Router class automatically validates the controller path using the router->_validate_request().
 	// If this include fails it means that the default controller in the Routes.php file is not resolving to something valid.
-	if ( ! file_exists(APPPATH.'controllers/'.$RTR->fetch_directory().$RTR->fetch_class().'.php'))
+	$file = 'controllers/'.$CI->router->fetch_directory().$CI->router->fetch_class().'.php';
+	$found = FALSE;
+	foreach ($packages as $path)
+	{
+		if (file_exists($path.$file))
+		{
+			include($path.$file);
+			$found = TRUE;
+			break;
+		}
+	}
+
+	if ( ! $found)
 	{
 		show_error('Unable to load your default controller. Please make sure the controller specified in your Routes.php file is valid.');
 	}
-
-	include(APPPATH.'controllers/'.$RTR->fetch_directory().$RTR->fetch_class().'.php');
 
 	// Set a mark point for benchmarking
 	$BM->mark('loading_time:_base_classes_end');
@@ -259,8 +293,8 @@
  *  loader class can be called via the URI, nor can
  *  controller functions that begin with an underscore
  */
-	$class  = $RTR->fetch_class();
-	$method = $RTR->fetch_method();
+	$class  = $CI->router->fetch_class();
+	$method = $CI->router->fetch_method();
 
 	if ( ! class_exists($class)
 		OR strncmp($method, '_', 1) == 0
@@ -285,7 +319,9 @@
 	// Mark a start point so we can benchmark the controller
 	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 
-	$CI = new $class();
+	$CI->routed = new $class();
+	$name = strtolower($class);
+	$CI->$name = $CI->routed;
 
 /*
  * ------------------------------------------------------
@@ -300,20 +336,20 @@
  * ------------------------------------------------------
  */
 	// Is there a "remap" function? If so, we call it instead
-	if (method_exists($CI, '_remap'))
+	if (method_exists($CI->routed, '_remap'))
 	{
-		$CI->_remap($method, array_slice($URI->rsegments, 2));
+		$CI->routed->_remap($method, array_slice($CI->uri->rsegments, 2));
 	}
 	else
 	{
 		// is_callable() returns TRUE on some versions of PHP 5 for private and protected
 		// methods, so we'll use this workaround for consistent behavior
-		if ( ! in_array(strtolower($method), array_map('strtolower', get_class_methods($CI))))
+		if ( ! in_array(strtolower($method), array_map('strtolower', get_class_methods($CI->routed))))
 		{
 			// Check and see if we are using a 404 override and use it.
-			if ( ! empty($RTR->routes['404_override']))
+			if ( ! empty($CI->router->routes['404_override']))
 			{
-				$x = explode('/', $RTR->routes['404_override']);
+				$x = explode('/', $CI->router->routes['404_override']);
 				$class = $x[0];
 				$method = (isset($x[1]) ? $x[1] : 'index');
 				if ( ! class_exists($class))
@@ -324,8 +360,8 @@
 					}
 
 					include_once(APPPATH.'controllers/'.$class.'.php');
-					unset($CI);
-					$CI = new $class();
+					unset($CI->routed);
+					$CI->routed = new $class();
 				}
 			}
 			else
@@ -336,7 +372,7 @@
 
 		// Call the requested method.
 		// Any URI segments present (besides the class/function) will be passed to the method for convenience
-		call_user_func_array(array(&$CI, $method), array_slice($URI->rsegments, 2));
+		call_user_func_array(array(&$CI->routed, $method), array_slice($CI->uri->rsegments, 2));
 	}
 
 
@@ -357,7 +393,7 @@
  */
 	if ($EXT->_call_hook('display_override') === FALSE)
 	{
-		$OUT->_display();
+		$CI->output->_display();
 	}
 
 /*

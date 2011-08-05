@@ -28,7 +28,7 @@
  */
 class CI_Router {
 
-	var $config;
+	var $CI;
 	var $routes			= array();
 	var $error_routes	= array();
 	var $class			= '';
@@ -43,9 +43,8 @@ class CI_Router {
 	 */
 	function __construct()
 	{
-		$this->config =& load_class('Config', 'core');
-		$this->uri =& load_class('URI', 'core');
-		log_message('debug', "Router Class Initialized");
+		$this->CI =& get_instance();
+		log_message('debug', 'Router Class Initialized');
 	}
 
 	// --------------------------------------------------------------------
@@ -65,23 +64,25 @@ class CI_Router {
 		// since URI segments are more search-engine friendly, but they can optionally be used.
 		// If this feature is enabled, we will gather the directory/class/method a little differently
 		$segments = array();
-		if ($this->config->item('enable_query_strings') === TRUE AND isset($_GET[$this->config->item('controller_trigger')]))
+		$config =& $this->CI->config;
+		$uri =& $this->CI->uri;
+		if ($config->item('enable_query_strings') === TRUE AND isset($_GET[$config->item('controller_trigger')]))
 		{
-			if (isset($_GET[$this->config->item('directory_trigger')]))
+			if (isset($_GET[$config->item('directory_trigger')]))
 			{
-				$this->set_directory(trim($this->uri->_filter_uri($_GET[$this->config->item('directory_trigger')])));
+				$this->set_directory(trim($uri->_filter_uri($_GET[$config->item('directory_trigger')])));
 				$segments[] = $this->fetch_directory();
 			}
 
-			if (isset($_GET[$this->config->item('controller_trigger')]))
+			if (isset($_GET[$config->item('controller_trigger')]))
 			{
-				$this->set_class(trim($this->uri->_filter_uri($_GET[$this->config->item('controller_trigger')])));
+				$this->set_class(trim($uri->_filter_uri($_GET[$config->item('controller_trigger')])));
 				$segments[] = $this->fetch_class();
 			}
 
-			if (isset($_GET[$this->config->item('function_trigger')]))
+			if (isset($_GET[$config->item('function_trigger')]))
 			{
-				$this->set_method(trim($this->uri->_filter_uri($_GET[$this->config->item('function_trigger')])));
+				$this->set_method(trim($uri->_filter_uri($_GET[$config->item('function_trigger')])));
 				$segments[] = $this->fetch_method();
 			}
 		}
@@ -110,25 +111,25 @@ class CI_Router {
 		}
 
 		// Fetch the complete URI string
-		$this->uri->_fetch_uri_string();
+		$uri->_fetch_uri_string();
 
 		// Is there a URI string? If not, the default controller specified in the "routes" file will be shown.
-		if ($this->uri->uri_string == '')
+		if ($uri->uri_string == '')
 		{
 			return $this->_set_default_controller();
 		}
 
 		// Do we need to remove the URL suffix?
-		$this->uri->_remove_url_suffix();
+		$uri->_remove_url_suffix();
 
 		// Compile the segments into an array
-		$this->uri->_explode_segments();
+		$uri->_explode_segments();
 
 		// Parse any custom routing that may exist
 		$this->_parse_routes();
 
 		// Re-index the segment array so that it starts with 1 rather than 0
-		$this->uri->_reindex_segments();
+		$uri->_reindex_segments();
 	}
 
 	// --------------------------------------------------------------------
@@ -162,7 +163,7 @@ class CI_Router {
 		}
 
 		// re-index the routed segments array so it starts with 1 rather than 0
-		$this->uri->_reindex_segments();
+		$this->CI->uri->_reindex_segments();
 
 		log_message('debug', "No URI present. Default controller set.");
 	}
@@ -205,8 +206,8 @@ class CI_Router {
 
 		// Update our "routed" segment array to contain the segments.
 		// Note: If there is no custom routing, this array will be
-		// identical to $this->uri->segments
-		$this->uri->rsegments = $segments;
+		// identical to $this->CI->uri->segments
+		$this->CI->uri->rsegments = $segments;
 	}
 
 	// --------------------------------------------------------------------
@@ -226,53 +227,56 @@ class CI_Router {
 			return $segments;
 		}
 
-		// Does the requested controller exist in the root folder?
-		if (file_exists(APPPATH.'controllers/'.$segments[0].'.php'))
+		// Search paths for controller
+		foreach ($this->CI->load->get_package_paths() as $path)
 		{
-			return $segments;
-		}
-
-		// Is the controller in a sub-folder?
-		if (is_dir(APPPATH.'controllers/'.$segments[0]))
-		{
-			// Set the directory and remove it from the segment array
-			$this->set_directory($segments[0]);
-			$segments = array_slice($segments, 1);
-
-			if (count($segments) > 0)
+			// Does the requested controller exist in the base folder?
+			if (file_exists($path.'controllers/'.$segments[0].'.php'))
 			{
-				// Does the requested controller exist in the sub-folder?
-				if ( ! file_exists(APPPATH.'controllers/'.$this->fetch_directory().$segments[0].'.php'))
-				{
-					show_404($this->fetch_directory().$segments[0]);
-				}
+				return $segments;
 			}
-			else
+	
+			// Is the controller in a sub-folder?
+			if (is_dir($path.'controllers/'.$segments[0]))
 			{
-				// Is the method being specified in the route?
-				if (strpos($this->default_controller, '/') !== FALSE)
+				// Set the directory and remove it from the segment array
+				$this->set_directory($segments[0]);
+				$segments = array_slice($segments, 1);
+	
+				if (count($segments) > 0)
 				{
-					$x = explode('/', $this->default_controller);
-
-					$this->set_class($x[0]);
-					$this->set_method($x[1]);
+					// Does the requested controller exist in the sub-folder?
+					if ( ! file_exists($path.'controllers/'.$this->fetch_directory().$segments[0].'.php'))
+					{
+						show_404($this->fetch_directory().$segments[0]);
+					}
 				}
 				else
 				{
-					$this->set_class($this->default_controller);
-					$this->set_method('index');
+					// Is the method being specified in the route?
+					if (strpos($this->default_controller, '/') !== FALSE)
+					{
+						$x = explode('/', $this->default_controller);
+	
+						$this->set_class($x[0]);
+						$this->set_method($x[1]);
+					}
+					else
+					{
+						$this->set_class($this->default_controller);
+						$this->set_method('index');
+					}
+	
+					// Does the default controller exist in the sub-folder?
+					if ( ! file_exists($path.'controllers/'.$this->fetch_directory().$this->default_controller.'.php'))
+					{
+						$this->directory = '';
+						return array();
+					}
 				}
-
-				// Does the default controller exist in the sub-folder?
-				if ( ! file_exists(APPPATH.'controllers/'.$this->fetch_directory().$this->default_controller.'.php'))
-				{
-					$this->directory = '';
-					return array();
-				}
-
+	
+				return $segments;
 			}
-
-			return $segments;
 		}
 
 
@@ -308,7 +312,7 @@ class CI_Router {
 	function _parse_routes()
 	{
 		// Turn the segment array into a URI string
-		$uri = implode('/', $this->uri->segments);
+		$uri = implode('/', $this->CI->uri->segments);
 
 		// Is there a literal match?  If so we're done
 		if (isset($this->routes[$uri]))
@@ -337,7 +341,7 @@ class CI_Router {
 
 		// If we got this far it means we didn't encounter a
 		// matching route so we'll set the site default route
-		$this->_set_request($this->uri->segments);
+		$this->_set_request($this->CI->uri->segments);
 	}
 
 	// --------------------------------------------------------------------

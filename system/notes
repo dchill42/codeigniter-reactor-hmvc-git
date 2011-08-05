@@ -1,0 +1,26 @@
+Common
+*Load Benchmark, start timers
+*Load Hooks, call pre-system
+
+*Load Config, assign config
+Load UTF-8
+
+*Load Root and Loader, autoload packages
+
+*Load URI
+*Load Router, set routing
+*Load Output, check cache
+
+Load Security
+Load Input
+Load Lang
+
+Set base classes, finish autoloading
+
+-- Other Loads --
++Common -> Exceptions, Log
++Hooks -> Config
+
+/Loader -> Model
+-URI -> Config
+-Router -> Config, URI
