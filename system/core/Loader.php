@@ -536,7 +536,7 @@ class CI_Loader {
 		}
 
 		// Prep filename
-		$helper = $this->_ci_prep_filename($helpers, '_helper');
+		$helper = strtolower(str_replace('.php', '', str_replace('_helper', '', $helpers)).'_helper');
 
 		// Check if already loaded
 		if (isset($this->_ci_helpers[$helper]))
@@ -1285,33 +1285,6 @@ class CI_Loader {
 	{
 		$CI =& get_instance();
 		return $CI->$component;
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Prep filename
-	 *
-	 * This function preps the name of various items to make loading them more reliable.
-	 *
-	 * @param	mixed
-	 * @return	array
-	 */
-	protected function _ci_prep_filename($filename, $extension)
-	{
-		if ( ! is_array($filename))
-		{
-			return array(strtolower(str_replace('.php', '', str_replace($extension, '', $filename)).$extension));
-		}
-		else
-		{
-			foreach ($filename as $key => $val)
-			{
-				$filename[$key] = strtolower(str_replace('.php', '', str_replace($extension, '', $val)).$extension);
-			}
-
-			return $filename;
-		}
 	}
 }
 
