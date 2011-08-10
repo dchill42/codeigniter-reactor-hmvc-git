@@ -217,6 +217,12 @@ class CI_Loader {
 			show_error('The controller name you are loading is the name of a resource that is already being used: '.$name);
 		}
 
+		// Load base class(es) if not already done
+		if ( ! class_exists('CI_Controller'))
+		{
+			load_class('Controller', 'core');
+		}
+
 		// Search MVC paths for controller
 		$controller = strtolower($controller);
 		$file = 'controllers/'.$path.$controller.'.php';
@@ -318,19 +324,7 @@ class CI_Loader {
 		// Load base class(es) if not already done
 		if ( ! class_exists('CI_Model'))
 		{
-			// Load core base class
 			load_class('Model', 'core');
-
-			// Search for model subclass
-			$file = 'core/'.$CI->config->item('subclass_prefix').'Model.php';
-			foreach ($this->_ci_mvc_paths as $mod_path => $view_cascade)
-			{
-				if (file_exists($mod_path.$file))
-				{
-					require $mod_path.$file;
-					break;
-				}
-			}
 		}
 
 		// Search MVC paths for model

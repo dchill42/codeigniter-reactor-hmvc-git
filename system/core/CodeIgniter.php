@@ -233,6 +233,7 @@ class CodeIgniter {
 		include($file);
 	}
 
+	// Instantiate CodeIgniter
 	function &get_instance()
 	{
 		return CodeIgniter::get_instance();
@@ -268,6 +269,18 @@ class CodeIgniter {
 
 /*
  * ------------------------------------------------------
+ *  Instantiate the output class
+ * ------------------------------------------------------
+ *
+ * Note: By instantiating Output before Router, we ensure
+ * it is available to support 404 overrides in case of a
+ * call to show_404().
+ *
+ */
+	$CI->load_core('Output');
+
+/*
+ * ------------------------------------------------------
  *  Instantiate the URI class
  * ------------------------------------------------------
  */
@@ -286,13 +299,6 @@ class CodeIgniter {
 	{
 		$CI->router->_set_overrides($routing);
 	}
-
-/*
- * ------------------------------------------------------
- *  Instantiate the output class
- * ------------------------------------------------------
- */
-	$CI->load_core('Output');
 
 /*
  * ------------------------------------------------------
@@ -336,69 +342,8 @@ class CodeIgniter {
 
 	$CI->load->ci_autoloader();
 
-/*
- * ------------------------------------------------------
- *  Load the local controller
- * ------------------------------------------------------
- */
-
-	// Load the Controller base class
-	require BASEPATH.'core/Controller.php';
-
-	// Load the Controller subclass, if found
-	$file = 'core/'.$CI->config->item('subclass_prefix').'Controller.php';
-	$packages = $CI->load->get_package_paths();
-	foreach ($packages as $path)
-	{
-		if (file_exists($path.$file))
-		{
-			require $path.$file;
-			break;
-		}
-	}
-
-	// Load the local application controller
-	// Note: The Router class automatically validates the controller path using the router->_validate_request().
-	// If this include fails it means that the default controller in the Routes.php file is not resolving to something valid.
-	$file = 'controllers/'.$CI->router->fetch_directory().$CI->router->fetch_class().'.php';
-	$found = FALSE;
-	foreach ($packages as $path)
-	{
-		if (file_exists($path.$file))
-		{
-			include($path.$file);
-			$found = TRUE;
-			break;
-		}
-	}
-
-	if ( ! $found)
-	{
-		show_error('Unable to load your default controller. Please make sure the controller specified in your Routes.php file is valid.');
-	}
-
 	// Set a mark point for benchmarking
 	$BM->mark('loading_time:_base_classes_end');
-
-/*
- * ------------------------------------------------------
- *  Security check
- * ------------------------------------------------------
- *
- * None of the functions in the app controller or the
- * loader class can be called via the URI, nor can
- * controller functions that begin with an underscore
- */
-	$class	= $CI->router->fetch_class();
-	$method = $CI->router->fetch_method();
-
-	if ( ! class_exists($class)
-		OR strncmp($method, '_', 1) == 0
-		OR in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))
-		)
-	{
-		show_404($class.'/'.$method);
-	}
 
 /*
  * ------------------------------------------------------
@@ -409,15 +354,21 @@ class CodeIgniter {
 
 /*
  * ------------------------------------------------------
- *  Instantiate the requested controller
+ *  Load the local controller
  * ------------------------------------------------------
  */
+
 	// Mark a start point so we can benchmark the controller
 	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 
-	$CI->routed = new $class();
-	$name = strtolower($class);
-	$CI->$name = $CI->routed;
+	// Get the routed directory, class, and method
+	$subdir	= $CI->router->fetch_directory();
+	$class	= $CI->router->fetch_class();
+	$method	= $CI->router->fetch_method();
+
+	// Instantiate the controller object
+	$CI->load->controller($subdir.$class);
+	$CI->routed =& $CI->$class;
 
 /*
  * ------------------------------------------------------
@@ -425,6 +376,24 @@ class CodeIgniter {
  * ------------------------------------------------------
  */
 	$EXT->_call_hook('post_controller_constructor');
+
+/*
+ * ------------------------------------------------------
+ *  Security check
+ * ------------------------------------------------------
+ *
+ * None of the functions in the app controller or the
+ * loader class can be called via the URI, nor can
+ * controller functions that begin with an underscore
+ */
+
+	if ( ! class_exists($class)
+		OR strncmp($method, '_', 1) == 0
+		OR in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))
+		)
+	{
+		show_404($class.'/'.$method);
+	}
 
 /*
  * ------------------------------------------------------
@@ -442,28 +411,7 @@ class CodeIgniter {
 		// methods, so we'll use this workaround for consistent behavior
 		if ( ! in_array(strtolower($method), array_map('strtolower', get_class_methods($CI->routed))))
 		{
-			// Check and see if we are using a 404 override and use it.
-			if ( ! empty($CI->router->routes['404_override']))
-			{
-				$x = explode('/', $CI->router->routes['404_override']);
-				$class = $x[0];
-				$method = (isset($x[1]) ? $x[1] : 'index');
-				if ( ! class_exists($class))
-				{
-					if ( ! file_exists(APPPATH.'controllers/'.$class.'.php'))
-					{
-						show_404($class.'/'.$method);
-					}
-
-					include_once(APPPATH.'controllers/'.$class.'.php');
-					unset($CI->routed);
-					$CI->routed = new $class();
-				}
-			}
-			else
-			{
-				show_404($class.'/'.$method);
-			}
+			show_404($class.'/'.$method);
 		}
 
 		// Call the requested method.
