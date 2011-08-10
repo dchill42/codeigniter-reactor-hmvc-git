@@ -16,6 +16,98 @@
 // ------------------------------------------------------------------------
 
 /**
+ * CodeIgniter Application Root Class
+ *
+ * This class object is the super class that every library in
+ * CodeIgniter will be assigned to.
+ *
+ * @package		CodeIgniter
+ * @subpackage	Libraries
+ * @category	Libraries
+ * @author		ExpressionEngine Dev Team
+ * @link		http://codeigniter.com/user_guide/general/controllers.html
+ */
+class CodeIgniter {
+	private static $instance = NULL;
+
+	/**
+	 * Constructor
+	 */
+	private function __construct()
+	{
+		// Assign all the class objects that were instantiated by the
+		// bootstrap file (CodeIgniter.php) to local class variables
+		// so that CI can run as one big super object.
+		// Later core loads will be done through load_core() below.
+		foreach (is_loaded() as $var => $class)
+		{
+			$this->$var =& load_class($class);
+		}
+
+		// Get Loader
+		$this->load =& load_class('Loader', 'core');
+
+		log_message('debug', 'Root Class Initialized');
+	}
+
+	/**
+	 * Load core class
+	 *
+	 * Loads a core class and registers it with root object
+	 *
+	 * @param	string	class name
+	 * @return	object
+	 */
+	public function load_core($class)
+	{
+		// Load class, immediately assign, and return object
+		$name = strtolower($class);
+		$this->$name =& load_class($class, 'core');
+		return $this->$name;
+	}
+
+	/**
+	 * Call magic method
+	 *
+	 * Calls method of routed controller if not existent in root
+	 *
+	 * @param	string	method name
+	 * @param	array	method arguments
+	 * @return	mixed
+	 */
+	public function __call($name, $arguments)
+	{
+		// Check for routed controller and method
+		if (isset($this->routed) && method_exists($this->routed, $name))
+		{
+			return call_user_func_array(array($this->routed, $name), $arguments);
+		}
+	}
+
+	/**
+	 * Get instance
+	 *
+	 * Returns singleton instance of root object
+	 *
+	 * @return	object
+	 */
+	public static function &get_instance()
+	{
+		// Check for existing instance
+		if (is_null(self::$instance))
+		{
+			// Instantiate object as subclass if defined, otherwise as base name
+			$pre = config_item('subclass_prefix');
+			$class = class_exists($pre.'CodeIgniter') ? $pre.'CodeIgniter' : 'CodeIgniter';
+			self::$instance = new $class();
+		}
+		return self::$instance;
+	}
+}
+
+// ------------------------------------------------------------------------
+
+/**
  * System Initialization File
  *
  * Loads the base classes and executes the request.
@@ -85,7 +177,7 @@
  * "libraries" folder. Since CI allows config items to be
  * overriden via data set in the main index. php file,
  * before proceeding we need to know if a subclass_prefix
- * override exists.  If so, we will set this value now,
+ * override exists. If so, we will set this value now,
  * before any classes are loaded
  * Note: Since the config file data is cached it doesn't
  * hurt to load it here.
@@ -100,7 +192,7 @@
  *  Set a liberal script execution time limit
  * ------------------------------------------------------
  */
-	if (function_exists("set_time_limit") == TRUE AND @ini_get("safe_mode") == 0)
+	if (function_exists('set_time_limit') == TRUE AND @ini_get('safe_mode') == 0)
 	{
 		@set_time_limit(300);
 	}
@@ -134,12 +226,16 @@
  * ------------------------------------------------------
  */
 
-	// Load the root class
-	require BASEPATH.'core/Root.php';
+	// Load the CodeIgniter subclass, if found
+	$file = APPPATH.'core/'.config_item('subclass_prefix').'CodeIgniter.php';
+	if (file_exists($file))
+	{
+		include($file);
+	}
 
 	function &get_instance()
 	{
-		return CI_Root::get_instance();
+		return CodeIgniter::get_instance();
 	}
 	$CI =& get_instance();
 
@@ -200,7 +296,7 @@
 
 /*
  * ------------------------------------------------------
- *	Is there a valid cache file?  If so, we're done...
+ *	Is there a valid cache file? If so, we're done...
  * ------------------------------------------------------
  */
 	if ($EXT->_call_hook('cache_override') === FALSE)
@@ -289,11 +385,11 @@
  *  Security check
  * ------------------------------------------------------
  *
- *  None of the functions in the app controller or the
- *  loader class can be called via the URI, nor can
- *  controller functions that begin with an underscore
+ * None of the functions in the app controller or the
+ * loader class can be called via the URI, nor can
+ * controller functions that begin with an underscore
  */
-	$class  = $CI->router->fetch_class();
+	$class	= $CI->router->fetch_class();
 	$method = $CI->router->fetch_method();
 
 	if ( ! class_exists($class)
@@ -301,7 +397,7 @@
 		OR in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))
 		)
 	{
-		show_404("{$class}/{$method}");
+		show_404($class.'/'.$method);
 	}
 
 /*
@@ -356,7 +452,7 @@
 				{
 					if ( ! file_exists(APPPATH.'controllers/'.$class.'.php'))
 					{
-						show_404("{$class}/{$method}");
+						show_404($class.'/'.$method);
 					}
 
 					include_once(APPPATH.'controllers/'.$class.'.php');
@@ -366,7 +462,7 @@
 			}
 			else
 			{
-				show_404("{$class}/{$method}");
+				show_404($class.'/'.$method);
 			}
 		}
 

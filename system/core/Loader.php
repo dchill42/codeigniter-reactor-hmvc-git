@@ -5,7 +5,7 @@
  * An open source application development framework for PHP 5.1.6 or newer
  *
  * @package		CodeIgniter
- * @author		ExpressionEngine Dev Team and Darren Hill <dchill42@gmail.com>, St. Petersburg College
+ * @author		ExpressionEngine Dev Team
  * @copyright	Copyright (c) 2008 - 2011, EllisLab, Inc.
  * @license		http://codeigniter.com/user_guide/license.html
  * @link		http://codeigniter.com
@@ -22,7 +22,7 @@
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
- * @author		ExpressionEngine Dev Team and Darren Hill <dchill42@gmail.com>, St. Petersburg College
+ * @author		ExpressionEngine Dev Team
  * @category	Loader
  * @link		http://codeigniter.com/user_guide/libraries/loader.html
  */
@@ -536,7 +536,7 @@ class CI_Loader {
 		}
 
 		// Prep filename
-		$helper = strtolower(str_replace('.php', '', str_replace('_helper', '', $helpers)).'_helper');
+		$helper = strtolower(str_replace(array('.php', '_helper'), '', $helpers)).'_helper');
 
 		// Check if already loaded
 		if (isset($this->_ci_helpers[$helper]))
@@ -988,7 +988,7 @@ class CI_Loader {
 			foreach ($this->_ci_library_paths as $path)
 			{
 				// Is this a class extension request?
-				$subclass = APPPATH.$file;
+				$subclass = $path.$file;
 				if (file_exists($subclass))
 				{
 					// Found extension - require base class
