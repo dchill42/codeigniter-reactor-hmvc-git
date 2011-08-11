@@ -83,14 +83,20 @@ class CI_Exceptions {
 	/**
 	 * 404 Page Not Found Handler
 	 *
+	 * Calls the 404 override method if configured, or displays a generic 404 error.
+	 * The 404 override method will get the requested page as its first argument,
+	 * followed by any trailing segments of 404_override. So, if "foo/bar" triggered
+	 * a 404, and 404_override was "my404/method/one/two", the effect would be to call:
+	 *	my404->method("foo/bar", "one", "two");
+	 *
 	 * @access	private
 	 * @param	string
 	 * @return	string
 	 */
 	function show_404($page = '', $log_error = TRUE)
 	{
-		$heading = "404 Page Not Found";
-		$message = "The page you requested was not found.";
+		$heading = '404 Page Not Found';
+		$message = 'The page you requested was not found.';
 
 		// By default we log this, but allow a dev to skip it
 		if ($log_error)
@@ -98,7 +104,25 @@ class CI_Exceptions {
 			log_message('error', '404 Page Not Found --> '.$page);
 		}
 
-		echo $this->show_error($heading, $message, 'error_404', 404);
+		// Check Router for a 404 override
+		$CI =& get_instance();
+		$segments = $CI->router->override_404();
+		if ($segments === FALSE)
+		{
+			// Just display the generic 404
+			echo $this->show_error($heading, $message, 'error_404', 404);
+		}
+		else
+		{
+			// Pull off 404 class and method, and prepend requested page
+			$class = array_shift($segments);
+			$method = array_shift($segments);
+			array_unshift($segments, $page);
+
+			// Call 404 method and display output
+			call_user_func_array(array(&$CI->$class, $method), $segments);
+			$CI->output->_display();
+		}
 		exit;
 	}
 
