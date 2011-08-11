@@ -13,8 +13,6 @@
  * @filesource
  */
 
-// ------------------------------------------------------------------------
-
 /**
  * CodeIgniter Benchmark Class
  *
@@ -28,10 +26,7 @@
  * @link		http://codeigniter.com/user_guide/libraries/benchmark.html
  */
 class CI_Benchmark {
-
 	var $marker = array();
-
-	// --------------------------------------------------------------------
 
 	/**
 	 * Set a benchmark marker
@@ -39,16 +34,12 @@ class CI_Benchmark {
 	 * Multiple calls to this function can be made so that several
 	 * execution points can be timed
 	 *
-	 * @access	public
-	 * @param	string	$name	name of the marker
+	 * @param	string	name of the marker
 	 * @return	void
 	 */
-	function mark($name)
-	{
+	public function mark($name) {
 		$this->marker[$name] = microtime();
 	}
-
-	// --------------------------------------------------------------------
 
 	/**
 	 * Calculates the time difference between two marked points.
@@ -58,26 +49,21 @@ class CI_Benchmark {
 	 * execution time to be shown in a template. The output class will
 	 * swap the real value for this variable.
 	 *
-	 * @access	public
 	 * @param	string	a particular marked point
 	 * @param	string	a particular marked point
 	 * @param	integer	the number of decimal places
 	 * @return	mixed
 	 */
-	function elapsed_time($point1 = '', $point2 = '', $decimals = 4)
-	{
-		if ($point1 == '')
-		{
+	public function elapsed_time($point1 = '', $point2 = '', $decimals = 4) {
+		if ($point1 == '') {
 			return '{elapsed_time}';
 		}
 
-		if ( ! isset($this->marker[$point1]))
-		{
+		if ( ! isset($this->marker[$point1])) {
 			return '';
 		}
 
-		if ( ! isset($this->marker[$point2]))
-		{
+		if ( ! isset($this->marker[$point2])) {
 			$this->marker[$point2] = microtime();
 		}
 
@@ -87,8 +73,6 @@ class CI_Benchmark {
 		return number_format(($em + $es) - ($sm + $ss), $decimals);
 	}
 
-	// --------------------------------------------------------------------
-
 	/**
 	 * Memory Usage
 	 *
@@ -97,16 +81,12 @@ class CI_Benchmark {
 	 * without the memory being calculated until the end.
 	 * The output class will swap the real value for this variable.
 	 *
-	 * @access	public
 	 * @return	string
 	 */
-	function memory_usage()
-	{
+	public function memory_usage() {
 		return '{memory_usage}';
 	}
-
 }
-
 // END CI_Benchmark class
 
 /* End of file Benchmark.php */

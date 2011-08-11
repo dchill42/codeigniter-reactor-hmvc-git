@@ -13,8 +13,6 @@
  * @filesource
  */
 
-// ------------------------------------------------------------------------
-
 /**
  * CodeIgniter Config Class
  *
@@ -27,39 +25,47 @@
  * @link		http://codeigniter.com/user_guide/libraries/config.html
  */
 class CI_Config {
-
-	var $config = array();
-	var $is_loaded = array();
-	var $_config_paths = array(APPPATH);
+	protected $CI;
+	protected $config = array();
+	protected $is_loaded = array();
 
 	/**
 	 * Constructor
 	 *
-	 * Sets the $config data from the primary config.php file as a class variable
+	 * Sets the config data from the primary config.php file as a class variable.
+	 * The primary config.php is bootstrapped here instead of using $this->load()
+	 * because of special handling and the unavailability of the rest of the core
+	 * objects when Config is loaded.
 	 *
-	 * @access   public
-	 * @param   string	the config file name
-	 * @param   boolean  if configuration values should be loaded into their own section
-	 * @param   boolean  true if errors should just return false, false if an error message should be displayed
-	 * @return  boolean  if the file was successfully loaded or not
+	 * @param	object	parent reference
 	 */
-	function __construct()
-	{
-		$this->config =& get_config();
-		log_message('debug', "Config Class Initialized");
+	public function __construct($CI) {
+		// Attach parent reference
+		$this->CI =& $CI;
+
+		// Get path relative to ENVIRONMENT
+		$file_path = $CI->get_env_path('config.php');
+
+		// Fetch the config file
+		if ( ! file_exists($file_path)) {
+			exit('The configuration file does not exist.');
+		}
+		require($file_path);
+
+		// Does the $config array exist in the file?
+		if ( ! isset($config) || ! is_array($config)) {
+			exit('Your config file does not appear to be formatted correctly.');
+		}
+		$this->config =& $config;
 
 		// Set the base_url automatically if none was provided
-		if ($this->config['base_url'] == '')
-		{
-			if (isset($_SERVER['HTTP_HOST']))
-			{
+		if ($this->config['base_url'] == '') {
+			if (isset($_SERVER['HTTP_HOST'])) {
 				$base_url = isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off' ? 'https' : 'http';
 				$base_url .= '://'. $_SERVER['HTTP_HOST'];
 				$base_url .= str_replace(basename($_SERVER['SCRIPT_NAME']), '', $_SERVER['SCRIPT_NAME']);
 			}
-
-			else
-			{
+			else {
 				$base_url = 'http://localhost/';
 			}
 
@@ -67,130 +73,122 @@ class CI_Config {
 		}
 	}
 
-	// --------------------------------------------------------------------
-
 	/**
 	 * Load Config File
 	 *
-	 * @access	public
-	 * @param	string	the config file name
-	 * @param   boolean  if configuration values should be loaded into their own section
-	 * @param   boolean  true if errors should just return false, false if an error message should be displayed
-	 * @return	boolean	if the file was loaded correctly
+	 * @param	string	the	config file name
+	 * @param	boolean	if configuration values should be loaded into their own section
+	 * @param	boolean	TRUE if errors should just return FALSE, otherwise an error message is displayed
+	 * @return	boolean	TRUE if the file was loaded correctly, otherwise FALSE
 	 */
-	function load($file = '', $use_sections = FALSE, $fail_gracefully = FALSE)
-	{
-		$file = ($file == '') ? 'config' : str_replace('.php', '', $file);
-		$found = FALSE;
-		$loaded = FALSE;
+	public function load($file, $use_sections = FALSE, $fail_gracefully = FALSE) {
+		// Strip .php from file
+		$file = str_replace('.php', '', $file);
 
-		foreach ($this->_config_paths as $path)
-		{
-			$check_locations = defined('ENVIRONMENT')
-				? array(ENVIRONMENT.'/'.$file, $file)
-				: array($file);
+		// Get config array and check result
+		$config = $this->get($file, $fail_gracefully);
+		if ($config === FALSE) {
+			// Graceful failure - just return FALSE
+			return FALSE;
+		}
 
-			foreach ($check_locations as $location)
-			{
-				$file_path = $path.'config/'.$location.'.php';
-
-				if (in_array($file_path, $this->is_loaded, TRUE))
-				{
-					$loaded = TRUE;
-					continue 2;
-				}
-
-				if (file_exists($file_path))
-				{
-					$found = TRUE;
-					break;
-				}
-			}
-
-			if ($found === FALSE)
-			{
-				continue;
-			}
-
-			include($file_path);
-
-			if ( ! isset($config) OR ! is_array($config))
-			{
-				if ($fail_gracefully === TRUE)
-				{
-					return FALSE;
-				}
-				show_error('Your '.$file_path.' file does not appear to contain a valid configuration array.');
-			}
-
-			if ($use_sections === TRUE)
-			{
-				if (isset($this->config[$file]))
-				{
+		// Make sure file isn't already loaded
+		if ( ! in_array($file, $this->is_loaded)) {
+			// Check for sections
+			if ($use_sections === TRUE) {
+				// Merge or set section
+				if (isset($this->config[$file])) {
 					$this->config[$file] = array_merge($this->config[$file], $config);
 				}
-				else
-				{
+				else {
 					$this->config[$file] = $config;
 				}
 			}
-			else
-			{
+			else {
+				// Merge config
 				$this->config = array_merge($this->config, $config);
 			}
 
-			$this->is_loaded[] = $file_path;
-			unset($config);
-
-			$loaded = TRUE;
-			log_message('debug', 'Config file loaded: '.$file_path);
-			break;
-		}
-
-		if ($loaded === FALSE)
-		{
-			if ($fail_gracefully === TRUE)
-			{
-				return FALSE;
-			}
-			show_error('The configuration file '.$file.'.php'.' does not exist.');
+			// Mark file as loaded
+			$this->is_loaded[] = $file;
 		}
 
 		return TRUE;
 	}
 
-	// --------------------------------------------------------------------
+	/**
+	 * Get config file contents
+	 *
+	 * Reads and merges config arrays from named config files
+	 *
+	 * @param	string	the	config file name
+	 * @param	boolean	TRUE if errors should just return FALSE, otherwise an error message is displayed
+	 * @return	mixed	merged config if found, otherwise FALSE
+	 */
+	public function get($file, $fail_gracefully = FALSE) {
+		// Ensure file ends with .php
+		if (!preg_match('/\.php$/', $file)) {
+			$file .= '.php';
+		}
+
+		// Merge arrays from all viable config paths
+		$merged = array();
+		foreach ($this->CI->get_env_path($file, TRUE) as $path) {
+			// Include file
+			include($path);
+
+			// Check for $config array
+			if ( ! is_array($config)) {
+				// Invalid - quit or exit
+				$this->CI->log_message('debug', 'Invalid config file: '.$path);
+				if ($fail_gracefully === TRUE) {
+					return FALSE;
+				}
+				$this->CI->show_error('Your '.$path.' file does not appear to contain a valid configuration array.');
+			}
+
+			// Merge config and unset local
+			$merged = array_merge($merged, $config);
+			unset($config);
+
+			// Log success for this file
+			$this->CI->log_message('debug', 'Config file loaded: '.$path);
+		}
+
+		// Test for merged config
+		if (empty($merged)) {
+			// None - quit or exit
+			if ($fail_gracefully === TRUE) {
+				return FALSE;
+			}
+			$this->CI->show_error('The configuration file '.$file.' does not exist.');
+		}
+
+		// Return merged config
+		return $merged;
+	}
 
 	/**
 	 * Fetch a config file item
 	 *
-	 *
-	 * @access	public
-	 * @param	string	the config item name
-	 * @param	string	the index name
-	 * @param	bool
+	 * @param	string	the	config item name
+	 * @param	string	the	index name
 	 * @return	string
 	 */
-	function item($item, $index = '')
-	{
-		if ($index == '')
-		{
-			if ( ! isset($this->config[$item]))
-			{
+	public function item($item, $index = '') {
+		if ($index == '') {
+			if ( ! isset($this->config[$item])) {
 				return FALSE;
 			}
 
 			$pref = $this->config[$item];
 		}
-		else
-		{
-			if ( ! isset($this->config[$index]))
-			{
+		else {
+			if ( ! isset($this->config[$index])) {
 				return FALSE;
 			}
 
-			if ( ! isset($this->config[$index][$item]))
-			{
+			if ( ! isset($this->config[$index][$item])) {
 				return FALSE;
 			}
 
@@ -200,130 +198,106 @@ class CI_Config {
 		return $pref;
 	}
 
-	// --------------------------------------------------------------------
-
 	/**
-	 * Fetch a config file item - adds slash after item
+	 * Fetch a config file item - adds slash after item (if item is not empty)
 	 *
-	 * The second parameter allows a slash to be added to the end of
-	 * the item, in the case of a path.
-	 *
-	 * @access	public
-	 * @param	string	the config item name
+	 * @param	string	the	config item name
 	 * @param	bool
 	 * @return	string
 	 */
-	function slash_item($item)
-	{
-		if ( ! isset($this->config[$item]))
-		{
+	public function slash_item($item) {
+		if ( ! isset($this->config[$item])) {
 			return FALSE;
+		}
+		if( trim($this->config[$item]) == '') {
+			return '';
 		}
 
 		return rtrim($this->config[$item], '/').'/';
 	}
 
-	// --------------------------------------------------------------------
-
 	/**
 	 * Site URL
+	 * Returns base_url . index_page [. uri_string]
 	 *
-	 * @access	public
-	 * @param	string	the URI string
+	 * @param	string	the	URI string
 	 * @return	string
 	 */
-	function site_url($uri = '')
-	{
-		if ($uri == '')
-		{
+	public function site_url($uri = '') {
+		if ($uri == '') {
 			return $this->slash_item('base_url').$this->item('index_page');
 		}
 
-		if ($this->item('enable_query_strings') == FALSE)
-		{
-			if (is_array($uri))
-			{
+		if ($this->item('enable_query_strings') == FALSE) {
+			$suffix = ($this->item('url_suffix') == FALSE) ? '' : $this->item('url_suffix');
+			return $this->slash_item('base_url').$this->slash_item('index_page').$this->_uri_string($uri).$suffix;
+		}
+		else {
+			return $this->slash_item('base_url').$this->item('index_page').'?'.$this->_uri_string($uri);
+		}
+	}
+
+	/**
+	 * Base URL
+	 * Returns base_url [. uri_string]
+	 *
+	 * @param	string	$uri
+	 * @return	string
+	 */
+	public function base_url($uri = '') {
+		return $this->slash_item('base_url').ltrim($this->_uri_string($uri), '/');
+	}
+
+	/**
+	 * Build URI string for use in Config::site_url() and Config::base_url()
+	 *
+	 * @access	protected
+	 * @param	mixed	URI	string or array of URIs
+	 * @return	string
+	 */
+	protected function _uri_string($uri) {
+		if ($this->item('enable_query_strings') == FALSE) {
+			if (is_array($uri)) {
 				$uri = implode('/', $uri);
 			}
-
-			$index = $this->item('index_page') == '' ? '' : $this->slash_item('index_page');
-			$suffix = ($this->item('url_suffix') == FALSE) ? '' : $this->item('url_suffix');
-			return $this->slash_item('base_url').$index.trim($uri, '/').$suffix;
+			$uri = trim($uri, '/');
 		}
-		else
-		{
-			if (is_array($uri))
-			{
+		else {
+			if (is_array($uri)) {
 				$i = 0;
 				$str = '';
-				foreach ($uri as $key => $val)
-				{
+				foreach ($uri as $key => $val) {
 					$prefix = ($i == 0) ? '' : '&';
 					$str .= $prefix.$key.'='.$val;
 					$i++;
 				}
-
 				$uri = $str;
 			}
-
-			return $this->slash_item('base_url').$this->item('index_page').'?'.$uri;
 		}
+		return $uri;
 	}
-
-	// --------------------------------------------------------------------
 
 	/**
 	 * System URL
 	 *
-	 * @access	public
 	 * @return	string
 	 */
-	function system_url()
-	{
-		$x = explode("/", preg_replace("|/*(.+?)/*$|", "\\1", BASEPATH));
+	public function system_url() {
+		$x = explode('/', preg_replace('|/*(.+?)/*$|', '\\1', BASEPATH));
 		return $this->slash_item('base_url').end($x).'/';
 	}
-
-	// --------------------------------------------------------------------
 
 	/**
 	 * Set a config file item
 	 *
-	 * @access	public
-	 * @param	string	the config item key
-	 * @param	string	the config item value
+	 * @param	string	the	config item key
+	 * @param	string	the	config item value
 	 * @return	void
 	 */
-	function set_item($item, $value)
-	{
+	public function set_item($item, $value) {
 		$this->config[$item] = $value;
 	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Assign to Config
-	 *
-	 * This function is called by the front controller (CodeIgniter.php)
-	 * after the Config class is instantiated.  It permits config items
-	 * to be assigned or overriden by variables contained in the index.php file
-	 *
-	 * @access	private
-	 * @param	array
-	 * @return	void
-	 */
-	function _assign_to_config($items = array())
-	{
-		if (is_array($items))
-		{
-			foreach ($items as $key => $val)
-			{
-				$this->set_item($key, $val);
-			}
-		}
-	}
 }
-
 // END CI_Config class
 
 /* End of file Config.php */

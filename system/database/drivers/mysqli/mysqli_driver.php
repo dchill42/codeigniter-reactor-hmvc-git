@@ -569,7 +569,7 @@ class CI_DB_mysqli_driver extends CI_DB {
 	{
 		return "INSERT INTO ".$table." (".implode(', ', $keys).") VALUES ".implode(', ', $values);
 	}
-	
+
 	// --------------------------------------------------------------------
 
 	/**
@@ -631,7 +631,7 @@ class CI_DB_mysqli_driver extends CI_DB {
 			{
 				if ($field != $index)
 				{
-					$final[$field][] =  'WHEN '.$index.' = '.$val[$index].' THEN '.$val[$field];
+					$final[$field][] = 'WHEN '.$index.' = '.$val[$index].' THEN '.$val[$field];
 				}
 			}
 		}
