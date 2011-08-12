@@ -67,6 +67,19 @@ class CodeIgniter {
 	}
 
 	/**
+	 * Determine if a class method can actually be called (from outside the class)
+	 *
+	 * @param	mixed	class name or object
+	 * @param	string	method
+	 * @return	boolean	TRUE if publicly callable, otherwise FALSE
+	 */
+	public function is_callable($class, $method)
+	{
+		// Just return whether the case-insensitive method is in the public methods
+		return in_array(strtolower($method), array_map('strtolower', get_class_methods($class)));
+	}
+
+	/**
 	 * Call magic method
 	 *
 	 * Calls method of routed controller if not existent in root
@@ -91,7 +104,7 @@ class CodeIgniter {
 	 *
 	 * @return	object
 	 */
-	public static function &get_instance()
+	public static function &instance()
 	{
 		// Check for existing instance
 		if (is_null(self::$instance))
@@ -225,7 +238,6 @@ class CodeIgniter {
  *  Load the application root
  * ------------------------------------------------------
  */
-
 	// Load the CodeIgniter subclass, if found
 	$file = APPPATH.'core/'.config_item('subclass_prefix').'CodeIgniter.php';
 	if (file_exists($file))
@@ -236,7 +248,7 @@ class CodeIgniter {
 	// Instantiate CodeIgniter
 	function &get_instance()
 	{
-		return CodeIgniter::get_instance();
+		return CodeIgniter::instance();
 	}
 	$CI =& get_instance();
 
@@ -264,7 +276,6 @@ class CodeIgniter {
  * after the Config class is instantiated.
  *
  */
-
 	$CI->load_core('Utf8');
 
 /*
@@ -339,7 +350,6 @@ class CodeIgniter {
  *  Autoload libraries, etc.
  * ------------------------------------------------------
  */
-
 	$CI->load->ci_autoloader();
 
 	// Set a mark point for benchmarking
@@ -357,7 +367,6 @@ class CodeIgniter {
  *  Load the local controller
  * ------------------------------------------------------
  */
-
 	// Mark a start point so we can benchmark the controller
 	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 
@@ -386,7 +395,6 @@ class CodeIgniter {
  * loader class can be called via the URI, nor can
  * controller functions that begin with an underscore
  */
-
 	if ( ! class_exists($class)
 		OR strncmp($method, '_', 1) == 0
 		OR in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))
@@ -400,25 +408,35 @@ class CodeIgniter {
  *  Call the requested method
  * ------------------------------------------------------
  */
-	// Is there a "remap" function? If so, we call it instead
-	if (method_exists($CI->routed, '_remap'))
+    // is_callable() returns TRUE on some versions of PHP 5 for private and protected
+	// methods, so we'll use this workaround for consistent behavior
+	$called = FALSE;
+	$segments = array_slice($CI->uri->rsegments, 2);
+	$args = array($method, $segments);
+	foreach (array('_remap', $method) as $call)
 	{
-		$CI->routed->_remap($method, array_slice($CI->uri->rsegments, 2));
-	}
-	else
-	{
-		// is_callable() returns TRUE on some versions of PHP 5 for private and protected
-		// methods, so we'll use this workaround for consistent behavior
-		if ( ! in_array(strtolower($method), array_map('strtolower', get_class_methods($CI->routed))))
+		if (in_array(strtolower($call), array_map('strtolower', get_class_methods($CI->routed))))
 		{
-			show_404($class.'/'.$method);
+			// Call the requested method.
+			// Any URI segments present (besides the class/function) will be passed to the method for convenience
+			call_user_func_array(array(&$CI->routed, $call), $segments);
+			$called = TRUE;
+			break;
 		}
-
-		// Call the requested method.
-		// Any URI segments present (besides the class/function) will be passed to the method for convenience
-		call_user_func_array(array(&$CI->routed, $method), array_slice($CI->uri->rsegments, 2));
+		else if (count($args) == 2)
+		{
+			// Unwrap segments from array with method.
+			// This makes the difference between $CI->routed->_remap($method, $segments)
+			// and $CI->routed->$method($segments[0], $segments[1], ...)
+			$args =& $args[1];
+		}
 	}
-
+   
+	if ($called == FALSE)
+	{
+		// Both _remap and $method failed - go to 404
+		show_404($class.'/'.$method);
+	}
 
 	// Mark a benchmark end point
 	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_end');
