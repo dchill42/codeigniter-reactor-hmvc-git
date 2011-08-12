@@ -1153,7 +1153,7 @@ class CI_Loader {
 		}
 		else
 		{
-			$this->CI->$classvar = new $name;
+			$this->CI->$classvar = new $name();
 		}
 	}
 
@@ -1218,7 +1218,18 @@ class CI_Loader {
 		// Autoload controllers
 		if (isset($this->_ci_autoload['controller']))
 		{
-			$this->controller($this->_ci_autoload['controller']);
+            $controller = $this->_ci_autoload['controller'];
+            if ( ! is_array($controller))
+            {
+                $controller = array($controller);
+            }
+
+            // We have to "manually" feed multiples to controller(), since an array
+            // is treated as a router stack instead of more than one controller
+            foreach ($controller as $uri)
+            {
+			    $this->controller($uri);
+            }
 		}
 
 		// Autoload models
