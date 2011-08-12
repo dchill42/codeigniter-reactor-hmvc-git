@@ -80,6 +80,49 @@ class CodeIgniter {
 	}
 
 	/**
+	 * Call a controller method
+	 *
+	 * Requires that controller already be loaded, validates method name, and calls
+	 * _remap if available.
+	 *
+	 * @param	string	class name
+	 * @param	string	method
+	 * @param	array	arguments
+	 * @param	string	optional object name
+	 * @return	boolean	TRUE on success, otherwise FALSE
+	 */
+	public function call_controller($class, $method, array $args = array(), $name = '')
+	{
+		// Default name if not provided
+		if (empty($name))
+		{
+			$name = strtolower($class);
+		}
+
+		// Class must be loaded, and method cannot start with underscore, nor be a member of the base class
+		if (isset($this->$name) && strncmp($method, '_', 1) != 0 &&
+		in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller'))) == FALSE)
+		{
+			// Check for _remap
+			if ($this->is_callable($class, '_remap'))
+			{
+				// Call _remap
+				call_user_func_array(array(&$this->$name, '_remap'), array($method, $args));
+				return TRUE;
+			}
+			else if ($this->is_callable($class, $method))
+			{
+				// Call method
+				call_user_func_array(array(&$this->$name, $method), $args);
+				return TRUE;
+			}
+		}
+
+		// Neither _remap nor method could be called
+		return FALSE;
+	}
+
+	/**
 	 * Call magic method
 	 *
 	 * Calls method of routed controller if not existent in root
@@ -370,13 +413,19 @@ class CodeIgniter {
 	// Mark a start point so we can benchmark the controller
 	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 
-	// Get the routed directory, class, and method
-	$subdir	= $CI->router->fetch_directory();
-	$class	= $CI->router->fetch_class();
-	$method	= $CI->router->fetch_method();
+	// Get the parsed route and identify class, method, and arguments
+	$route = $CI->router->fetch_route();
+	$args = array_slice(CI_Router::SEG_CLASS);
+	$class = array_unshift($args);
+	$method = array_unshift($args);
 
-	// Instantiate the controller object
-	$CI->load->controller($subdir.$class);
+	// Load the controller, but don't call the method yet
+	if ($CI->load->controller($route, '', FALSE) == FALSE)
+	{
+		show_404($class.'/'.$method);
+	}
+
+	// Set special "routed" reference to routed Controller
 	$CI->routed =& $CI->$class;
 
 /*
@@ -388,51 +437,10 @@ class CodeIgniter {
 
 /*
  * ------------------------------------------------------
- *  Security check
- * ------------------------------------------------------
- *
- * None of the functions in the app controller or the
- * loader class can be called via the URI, nor can
- * controller functions that begin with an underscore
- */
-	if ( ! class_exists($class)
-		OR strncmp($method, '_', 1) == 0
-		OR in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))
-		)
-	{
-		show_404($class.'/'.$method);
-	}
-
-/*
- * ------------------------------------------------------
  *  Call the requested method
  * ------------------------------------------------------
  */
-    // is_callable() returns TRUE on some versions of PHP 5 for private and protected
-	// methods, so we'll use this workaround for consistent behavior
-	$called = FALSE;
-	$segments = array_slice($CI->uri->rsegments, 2);
-	$args = array($method, $segments);
-	foreach (array('_remap', $method) as $call)
-	{
-		if (in_array(strtolower($call), array_map('strtolower', get_class_methods($CI->routed))))
-		{
-			// Call the requested method.
-			// Any URI segments present (besides the class/function) will be passed to the method for convenience
-			call_user_func_array(array(&$CI->routed, $call), $segments);
-			$called = TRUE;
-			break;
-		}
-		else if (count($args) == 2)
-		{
-			// Unwrap segments from array with method.
-			// This makes the difference between $CI->routed->_remap($method, $segments)
-			// and $CI->routed->$method($segments[0], $segments[1], ...)
-			$args =& $args[1];
-		}
-	}
-   
-	if ($called == FALSE)
+	if ($CI->call_controller($class, $method, $args) == FALSE)
 	{
 		// Both _remap and $method failed - go to 404
 		show_404($class.'/'.$method);

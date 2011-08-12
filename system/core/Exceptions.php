@@ -102,7 +102,7 @@ class CI_Exceptions {
 
 		// Check Router for a 404 override
 		$CI =& get_instance();
-		if ($CI->router->override_404() === FALSE)
+		if ($CI->router->_override_404() === FALSE)
 		{
 			// Just display the generic 404
 			echo $this->show_error($heading, $message, 'error_404', 404);
