@@ -200,8 +200,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * @param	string	method
 	 * @return	boolean	TRUE if publicly callable, otherwise FALSE
 	 */
-	public function is_callable($class, $method)
-	{
+	public function is_callable($class, $method) {
 		// Just return whether the case-insensitive method is in the public methods
 		return in_array(strtolower($method), array_map('strtolower', get_class_methods($class)));
 	}
@@ -218,27 +217,22 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * @param	string	optional object name
 	 * @return	boolean	TRUE on success, otherwise FALSE
 	 */
-	public function call_controller($class, $method, array $args = array(), $name = '')
-	{
+	public function call_controller($class, $method, array $args = array(), $name = '') {
 		// Default name if not provided
-		if (empty($name))
-		{
+		if (empty($name)) {
 			$name = strtolower($class);
 		}
 
 		// Class must be loaded, and method cannot start with underscore, nor be a member of the base class
 		if (isset($this->$name) && strncmp($method, '_', 1) != 0 &&
-		in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller'))) == FALSE)
-		{
+		in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller'))) == FALSE) {
 			// Check for _remap
-			if ($this->is_callable($class, '_remap'))
-			{
+			if ($this->is_callable($class, '_remap')) {
 				// Call _remap
 				call_user_func_array(array(&$this->$name, '_remap'), array($method, $args));
 				return TRUE;
 			}
-			else if ($this->is_callable($class, $method))
-			{
+			else if ($this->is_callable($class, $method)) {
 				// Call method
 				call_user_func_array(array(&$this->$name, $method), $args);
 				return TRUE;
@@ -378,6 +372,9 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			$this->hooks->_call_hook('pre_system');
 		}
 
+		// Load Output
+		$this->_load_core_class('Output');
+
 		// Load URI and Router, which depends on URI
 		$this->_load_core_class('URI');
 		$this->_load_core_class('Router');
@@ -385,10 +382,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		// Set routing with any overrides from index.php
 		$this->router->_set_routing($routing);
 
-		// Load Output
-		$this->_load_core_class('Output');
-
-		// Is there a valid cache file? If so, we're done...
+		// Check for cache override or failed cache display
 		if ((isset($this->hooks) && $this->hooks->_call_hook('cache_override') === TRUE) ||
 		$this->output->_display_cache() == FALSE) {
 			// Load remaining core classes
@@ -402,6 +396,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 				$this->benchmark->mark('loading_time:_base_classes_end');
 			}
 
+			// Load and run the controller
 			$this->run_controller();
 		}
 	}
@@ -423,16 +418,16 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			$this->hooks->_call_hook('pre_controller');
 		}
 
-		// Mark a start point so we can benchmark the controller
-		if (isset($this->benchmark)) {
-			$this->benchmark->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
-		}
-
 		// Get the parsed route and identify class, method, and arguments
 		$route = $this->router->fetch_route();
 		$args = array_slice(CI_Router::SEG_CLASS);
 		$class = array_unshift($args);
 		$method = array_unshift($args);
+
+		// Mark a start point so we can benchmark the controller
+		if (isset($this->benchmark)) {
+			$this->benchmark->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
+		}
 
 		// Load the controller, but don't call the method yet
 		if ($this->load->controller($route, '', FALSE) == FALSE) {
@@ -448,7 +443,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 
 		// Call the requested method
-		if ($CI->call_controller($class, $method, $args) == FALSE) {
+		if ($this->call_controller($class, $method, $args) == FALSE) {
 			// Both _remap and $method failed - go to 404
 			$this->show_404($class.'/'.$method);
 		}
