@@ -23,13 +23,13 @@
  * @link		http://codeigniter.com/user_guide/libraries/exceptions.html
  */
 class CI_Exceptions {
-    protected $CI;
+    protected $CI = NULL;
 	public $action;
 	public $severity;
 	public $message;
 	public $filename;
 	public $line;
-	public $ob_level;
+	public $ob_level = 0;
 	public $levels = array(
         E_ERROR				=>	'Error',
         E_WARNING			=>	'Warning',
@@ -75,7 +75,7 @@ class CI_Exceptions {
 	/**
 	 * 404 Page Not Found Handler
 	 *
-	 * Calls the 404 override method if configured, or displays a generic 404 error.
+	 * Calls the 404 override method if available, or displays a generic 404 error.
 	 * The 404 override method will get the requested page as its first argument,
 	 * followed by any trailing segments of 404_override. So, if "foo/bar" triggered
 	 * a 404, and 404_override was "my404/method/one/two", the effect would be to call:
@@ -86,33 +86,38 @@ class CI_Exceptions {
 	 * @return	string
 	 */
 	public function show_404($page = '', $log_error = TRUE) {
-		$heading = '404 Page Not Found';
-		$message = 'The page you requested was not found.';
-
 		// By default we log this, but allow a dev to skip it
 		if ($log_error) {
 			$this->CI->log_message('error', '404 Page Not Found --> '.$page);
 		}
 
 		// Check Router for a 404 override
-		$CI =& get_instance();
-		$segments = $CI->router->override_404();
-		if ($segments === FALSE)
-		{
-			// Just display the generic 404
-			echo $this->show_error($heading, $message, 'error_404', 404);
-		}
-		else
-		{
-			// Pull off 404 class and method, and prepend requested page
-			$class = array_shift($segments);
-			$method = array_shift($segments);
-			array_unshift($segments, $page);
+		$route = $this->CI->router->get_404_overide();
+		if ($route !== FALSE) {
+			// Insert or append page name argument
+			if (count($route) > CI_Router::SEG_ARGS) {
+				// Insert $page after path, subdir, class, and method and before other args
+				$route = array_merge(
+					array_slice($route, 0, CI_Router::SEG_ARGS),
+					array($page),
+					array_slice($route, CI_Router::SEG_ARGS)
+				);
+			}
+			else {
+				// Just append $page to the end
+				$route[] = $page;
+			}
 
-			// Call 404 method and display output
-			call_user_func_array(array(&$CI->$class, $method), $segments);
-			$CI->output->_display();
+			// Load the 404 Controller and call the method
+			if ($this->CI->load->controller($route)) {
+				// Display the output and exit
+				$this->CI->output->_display();
+				exit;
+			}
 		}
+
+		// If the override didn't exit above, just display the generic 404
+		echo $this->show_error('404 Page Not Found', 'The page you requested was not found.', 'error_404', 404);
 		exit;
 	}
 
@@ -131,7 +136,7 @@ class CI_Exceptions {
 	public function show_error($heading, $message, $template = 'error_general', $status_code = 500) {
 		$this->CI->output->set_status_header($status_code);
 
-		$message = '<p>'.implode('</p><p>', ( ! is_array($message)) ? array($message) : $message).'</p>';
+		$message = '<p>'.implode('</p><p>', (is_array($message)) ? $message : array($message)).'</p>';
 
 		if (ob_get_level() > $this->ob_level + 1) {
 			ob_end_flush();
@@ -153,7 +158,7 @@ class CI_Exceptions {
 	 * @return	string
 	 */
 	public function show_php_error($severity, $message, $filepath, $line) {
-		$severity = ( ! isset($this->levels[$severity])) ? $severity : $this->levels[$severity];
+		$severity = isset($this->levels[$severity]) ? $this->levels[$severity] : $severity;
 
 		$filepath = str_replace("\\", '/', $filepath);
 

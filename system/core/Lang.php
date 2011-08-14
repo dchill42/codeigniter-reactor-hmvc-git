@@ -23,7 +23,7 @@
  * @link		http://codeigniter.com/user_guide/libraries/language.html
  */
 class CI_Lang {
-	protected $CI;
+	protected $CI		= NULL;
 	public $language	= array();
 	public $is_loaded	= array();
 
@@ -81,7 +81,7 @@ class CI_Lang {
 			}
 		}
 
-		if ( ! isset($lang)) {
+		if (!isset($lang)) {
 			$this->CI->log_message('error', 'Language file contains no data: language/'.$idiom.'/'.$langfile);
 			return;
 		}
@@ -94,7 +94,7 @@ class CI_Lang {
 		$this->language = array_merge($this->language, $lang);
 		unset($lang);
 
-		$this-.CI->log_message('debug', 'Language file loaded: language/'.$idiom.'/'.$langfile);
+		$this->CI->log_message('debug', 'Language file loaded: language/'.$idiom.'/'.$langfile);
 		return TRUE;
 	}
 

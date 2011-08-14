@@ -25,7 +25,7 @@
  * @link		http://codeigniter.com/user_guide/libraries/config.html
  */
 class CI_Config {
-	protected $CI;
+	protected $CI = NULL;
 	protected $config = array();
 	protected $is_loaded = array();
 
@@ -54,7 +54,7 @@ class CI_Config {
 	 * @param	array	configuration
 	 * @return	void
 	 */
-	public function _init($config) {
+	public function _init(array $config) {
 		// Initialize config array
 		$this->config =& $config;
 
@@ -192,9 +192,6 @@ class CI_Config {
 		if ( ! isset($this->config[$item])) {
 			return FALSE;
 		}
-		if( trim($this->config[$item]) == '') {
-			return '';
-		}
 
 		return rtrim($this->config[$item], '/').'/';
 	}
@@ -212,38 +209,13 @@ class CI_Config {
 		}
 
 		if ($this->item('enable_query_strings') == FALSE) {
-			$suffix = ($this->item('url_suffix') == FALSE) ? '' : $this->item('url_suffix');
-			return $this->slash_item('base_url').$this->slash_item('index_page').$this->_uri_string($uri).$suffix;
-		}
-		else {
-			return $this->slash_item('base_url').$this->item('index_page').'?'.$this->_uri_string($uri);
-		}
-	}
-
-	/**
-	 * Base URL
-	 * Returns base_url [. uri_string]
-	 *
-	 * @param	string	$uri
-	 * @return	string
-	 */
-	public function base_url($uri = '') {
-		return $this->slash_item('base_url').ltrim($this->_uri_string($uri), '/');
-	}
-
-	/**
-	 * Build URI string for use in Config::site_url() and Config::base_url()
-	 *
-	 * @access	protected
-	 * @param	mixed	URI	string or array of URIs
-	 * @return	string
-	 */
-	protected function _uri_string($uri) {
-		if ($this->item('enable_query_strings') == FALSE) {
 			if (is_array($uri)) {
 				$uri = implode('/', $uri);
 			}
-			$uri = trim($uri, '/');
+
+			$index = $this->item('index_page') == '' ? '' : $this->slash_item('index_page');
+			$suffix = ($this->item('url_suffix') == FALSE) ? '' : $this->item('url_suffix');
+			return $this->slash_item('base_url').$index.trim($uri, '/').$suffix;
 		}
 		else {
 			if (is_array($uri)) {
@@ -256,8 +228,9 @@ class CI_Config {
 				}
 				$uri = $str;
 			}
+
+			return $this->slash_item('base_url').$this->item('index_page').'?'.$uri;
 		}
-		return $uri;
 	}
 
 	/**

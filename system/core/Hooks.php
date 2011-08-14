@@ -25,7 +25,7 @@
  * @link		http://codeigniter.com/user_guide/libraries/encryption.html
  */
 class CI_Hooks {
-	protected $CI;
+	protected $CI = NULL;
 	protected $hooks = array();
 	protected $in_progress = FALSE;
 
@@ -54,7 +54,7 @@ class CI_Hooks {
 	 * @return	mixed
 	 */
 	public function _call_hook($which = '') {
-		if (! isset($this->hooks[$which])) {
+		if (!isset($this->hooks[$which])) {
 			return FALSE;
 		}
 
@@ -85,20 +85,18 @@ class CI_Hooks {
 		}
 
 		// Safety - Prevents run-away loops
-		// -----------------------------------
-		// If the script being called happens to have the same
-		// hook call within it a loop can happen
+		// If the script being called happens to have the same hook call within it a loop can happen
 		if ($this->in_progress == TRUE) {
 			return;
 		}
 
 		// Set file path
-		if ( ! isset($data['filepath']) OR ! isset($data['filename'])) {
+		if (isset($data['filepath']) || !isset($data['filename'])) {
 			return FALSE;
 		}
 		$filepath = APPPATH.$data['filepath'].'/'.$data['filename'];
 
-		if ( ! file_exists($filepath)) {
+		if (!file_exists($filepath)) {
 			return FALSE;
 		}
 
@@ -127,7 +125,7 @@ class CI_Hooks {
 
 		// Call the requested class and/or function
 		if ($class !== FALSE) {
-			if ( ! class_exists($class)) {
+			if (!class_exists($class)) {
 				require($filepath);
 			}
 
@@ -135,7 +133,7 @@ class CI_Hooks {
 			$HOOK->$function($params);
 		}
 		else {
-			if ( ! function_exists($function)) {
+			if (!function_exists($function)) {
 				require($filepath);
 			}
 

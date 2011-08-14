@@ -25,7 +25,7 @@
  * @link		http://codeigniter.com/user_guide/libraries/utf8.html
  */
 class CI_Utf8 {
-	protected $CI;
+	protected $CI = NULL;
 
 	/**
 	 * Constructor
@@ -106,7 +106,7 @@ class CI_Utf8 {
 		if (function_exists('iconv')) {
 			$str = @iconv($encoding, 'UTF-8', $str);
 		}
-		elseif (function_exists('mb_convert_encoding')) {
+		else if (function_exists('mb_convert_encoding')) {
 			$str = @mb_convert_encoding($str, 'UTF-8', $encoding);
 		}
 		else {

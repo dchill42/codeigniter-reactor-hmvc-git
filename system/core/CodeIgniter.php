@@ -54,12 +54,9 @@ class CI_LoaderBase {
  */
 class CI_RouterBase {
 	protected function _set_routing() { }
-	protected function _set_overrides($routing) { }
-	protected function _routes($route) { }
 	protected function _fetch_uri_string() { }
 	protected function _filter_uri($str) { }
-	protected function _remove_url_suffix() { }
-	protected function _explode_segments() { }
+	protected function _set_rsegments(array $rsegments) { }
 	protected function _reindex_segments() { }
 }
 
@@ -197,6 +194,62 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	}
 
 	/**
+	 * Determine if a class method can actually be called (from outside the class)
+	 *
+	 * @param	mixed	class name or object
+	 * @param	string	method
+	 * @return	boolean	TRUE if publicly callable, otherwise FALSE
+	 */
+	public function is_callable($class, $method)
+	{
+		// Just return whether the case-insensitive method is in the public methods
+		return in_array(strtolower($method), array_map('strtolower', get_class_methods($class)));
+	}
+
+	/**
+	 * Call a controller method
+	 *
+	 * Requires that controller already be loaded, validates method name, and calls
+	 * _remap if available.
+	 *
+	 * @param	string	class name
+	 * @param	string	method
+	 * @param	array	arguments
+	 * @param	string	optional object name
+	 * @return	boolean	TRUE on success, otherwise FALSE
+	 */
+	public function call_controller($class, $method, array $args = array(), $name = '')
+	{
+		// Default name if not provided
+		if (empty($name))
+		{
+			$name = strtolower($class);
+		}
+
+		// Class must be loaded, and method cannot start with underscore, nor be a member of the base class
+		if (isset($this->$name) && strncmp($method, '_', 1) != 0 &&
+		in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller'))) == FALSE)
+		{
+			// Check for _remap
+			if ($this->is_callable($class, '_remap'))
+			{
+				// Call _remap
+				call_user_func_array(array(&$this->$name, '_remap'), array($method, $args));
+				return TRUE;
+			}
+			else if ($this->is_callable($class, $method))
+			{
+				// Call method
+				call_user_func_array(array(&$this->$name, $method), $args);
+				return TRUE;
+			}
+		}
+
+		// Neither _remap nor method could be called
+		return FALSE;
+	}
+
+	/**
 	 * Initialize configuration
 	 *
 	 * This function finishes bootstrapping the CodeIgniter object by loading
@@ -329,11 +382,8 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		$this->_load_core_class('URI');
 		$this->_load_core_class('Router');
 
-		// Set routing and any overrides from index.php
-		$this->router->_set_routing();
-		if (isset($routing)) {
-			$this->router->_set_overrides($routing);
-		}
+		// Set routing with any overrides from index.php
+		$this->router->_set_routing($routing);
 
 		// Load Output
 		$this->_load_core_class('Output');
@@ -368,14 +418,6 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			unset($this->_ci_autoload);
 		}
 
-		// The Router class automatically validates the controller path in _validate_request().
-		// If this include fails it means that the default controller in the Routes.php file
-		// is not resolving to something valid.
-		$subdir = $this->router->fetch_directory();
-		$class = $this->router->fetch_class();
-		$method = $this->router->fetch_method();
-		$obj_name = strtolower($class);
-
 		// Call the "pre_controller" hook
 		if (isset($this->hooks)) {
 			$this->hooks->_call_hook('pre_controller');
@@ -386,58 +428,29 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			$this->benchmark->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 		}
 
-		// Load the local application controller
-		// We initialize $this->routed to the class name to trigger an extra error message
-		// in the destructor if the routed Controller load blows up.
-		$this->routed = $class;
-		$this->load->controller($subdir.$class, $obj_name);
-		$this->routed =& $this->$obj_name;
+		// Get the parsed route and identify class, method, and arguments
+		$route = $this->router->fetch_route();
+		$args = array_slice(CI_Router::SEG_CLASS);
+		$class = array_unshift($args);
+		$method = array_unshift($args);
+
+		// Load the controller, but don't call the method yet
+		if ($this->load->controller($route, '', FALSE) == FALSE) {
+			$this->show_404($class.'/'.$method);
+		}
+
+		// Set special "routed" reference to routed Controller
+		$this->routed =& $this->$class;
 
 		// Call the "post_controller_constructor" hook
 		if (isset($this->hooks)) {
 			$this->hooks->_call_hook('post_controller_constructor');
 		}
 
-		// Security check - Class must exist, method can't contain an underscore,
-		// and Controller base class methods can't be called via the URI
-		if ( ! class_exists($class) || strncmp($method, '_', 1) == 0 ||
-		in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))) {
-			$this->show_404($class.'/'.$method);
-		}
-
 		// Call the requested method
-		// Is there a "remap" function? If so, we call it instead
-		if (method_exists($this->routed, '_remap')) {
-			$this->routed->_remap($method, array_slice($this->uri->rsegments, 2));
-		}
-		else {
-			// is_callable() returns TRUE on some versions of PHP 5 for private and protected
-			// methods, so we'll use this workaround for consistent behavior
-			if ( ! in_array(strtolower($method), array_map('strtolower', get_class_methods($this->routed)))) {
-				// Check and see if we are using a 404 override and use it.
-				$over = $this->router->routes('404_override');
-				if (empty($over)) {
-					$this->show_404($class.'/'.$method);
-				}
-				else {
-					$x = explode('/', $over);
-					$class = $x[0];
-					$method = (isset($x[1]) ? $x[1] : 'index');
-					if ( ! class_exists($class)) {
-						if ( ! file_exists(APPPATH.'controllers/'.$class.'.php')) {
-							$this->show_404($class.'/'.$method);
-						}
-
-						include_once(APPPATH.'controllers/'.$class.'.php');
-						unset($this->routed);
-						$this->routed = new $class();
-					}
-				}
-			}
-
-			// Call the requested method.
-			// Any URI segments present (besides the class/function) will be passed to the method for convenience
-			call_user_func_array(array(&$this->routed, $method), array_slice($this->uri->rsegment_array(), 2));
+		if ($CI->call_controller($class, $method, $args) == FALSE) {
+			// Both _remap and $method failed - go to 404
+			$this->show_404($class.'/'.$method);
 		}
 
 		// Mark a benchmark end point
@@ -993,14 +1006,14 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 *
 	 * @access	protected
 	 * @param	string	class name
-	 * @param	boolean	TRUE for model or FALSE for controller
+	 * @param	string	package path for controller
 	 * @param	string	class subdirectory
 	 * @param	string	object name
 	 * @return	void
 	 */
-	protected function _load_user_class($class, $model, $subdir, $obj_name) {
+	protected function _load_user_class($class, $path, $subdir, $obj_name) {
 		// Set type
-		$type = $model ? 'model' : 'controller';
+		$type = empty($path) ? 'model' : 'controller';
 
 		// Check for name conflict
 		if (isset($this->$obj_name)) {
@@ -1010,43 +1023,38 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 
 		// Load base class(es) if not already done
 		$base = ucfirst($type);
-		if ( ! class_exists('CI_'.$base)) {
-			// Load core base class
+		if (!class_exists('CI_'.$base)) {
 			$this->_load_core_class($base, FALSE);
+		}
 
-			// Search for subclass
-			if (!empty($this->_ci_subclass_prefix)) {
-				$file = 'core/'.$this->_ci_subclass_prefix.$base.'.php';
-				foreach ($this->_ci_app_paths as $mvc_path => $view_cascade) {
-					if (file_exists($mvc_path.$file)) {
-						include($mvc_path.$file);
-						break;
-					}
+		// See if path was provided
+		$class = strtolower($class);
+		if (empty($path)) {
+			// Search path list for class
+			$file = $type.'s/'.$subdir.$class.'.php';
+			foreach ($this->_ci_app_paths as $app_path => $view_cascade) {
+				// Check each path for filename
+				if (file_exists($app_path.$file)) {
+					$path = $app_path;
+					break;
 				}
 			}
 		}
 
-		// Search path list for class
-		$class = strtolower($class);
-		$file = $type.'s/'.$subdir.$class.'.php';
-		foreach ($this->_ci_app_paths as $mvc_path => $view_cascade) {
-			// Check each path for filename
-			if (file_exists($mvc_path.$file)) {
-				// Include source
-				include_once($mvc_path.$file);
-
-				// Instantiate class and attach
-				$classnm = ucfirst($class);
-				$this->$obj_name = new $classnm();
-
-				// Map object name to class
-				$this->_ci_classes[$class][] = $obj_name;
-				return;
-			}
+		// Check for valid path
+		if (empty($path)) {
+			$this->show_error('Unable to locate the '.$type.' you have specified: '.$class);
 		}
 
-		// If we got here, the class wasn't found
-		$this->show_error('Unable to locate the '.$type.' you have specified: '.$class);
+		// Include source
+		require_once($mvc_path.$file);
+
+		// Instantiate class and attach
+		$classnm = ucfirst($class);
+		$this->$obj_name = new $classnm();
+
+		// Map object name to class
+		$this->_ci_classes[$class][] = $obj_name;
 	}
 
 	/**

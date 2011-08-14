@@ -25,15 +25,15 @@
  * @link		http://codeigniter.com/user_guide/libraries/output.html
  */
 class CI_Output {
-	protected $CI;
-	protected $final_output;
+	protected $CI				= NULL;
+	protected $final_output		= '';
 	protected $cache_expiration	= 0;
 	protected $headers			= array();
 	protected $mime_types		= array();
+	protected $profiler_sects	= array();
 	protected $enable_profiler	= FALSE;
-	protected $_zlib_oc			= FALSE;
-	protected $_profiler_sections = array();
-	protected $parse_exec_vars	= TRUE;	// whether or not to parse variables like {elapsed_time} and {memory_usage}
+	protected $zlib_oc			= FALSE;
+	public $parse_exec_vars		= TRUE;	// whether or not to parse variables like {elapsed_time} and {memory_usage}
 
 	/**
 	 * Constructor
@@ -42,7 +42,8 @@ class CI_Output {
 		// Attach parent reference
 		$this->CI =& $CI;
 
-		$this->_zlib_oc = @ini_get('zlib.output_compression');
+		// Get compression state
+		$this->zlib_oc = @ini_get('zlib.output_compression');
 
 		// Get mime types for later
 		$mimes = CodeIgniter::get_config('mimes.php', 'mimes');
@@ -106,8 +107,7 @@ class CI_Output {
 		// but it will not modify the content-length header to compensate for
 		// the reduction, causing the browser to hang waiting for more data.
 		// We'll just skip content-length in those cases.
-
-		if ($this->_zlib_oc && strncasecmp($header, 'content-length', 14) == 0) {
+		if ($this->zlib_oc && strncasecmp($header, 'content-length', 14) == 0) {
 			return;
 		}
 
@@ -136,9 +136,7 @@ class CI_Output {
 			}
 		}
 
-		$header = 'Content-Type: '.$mime_type;
-
-		$this->headers[] = array($header, TRUE);
+		$this->headers[] = array('Content-Type: '.$mime_type$, TRUE);
 
 		return $this;
 	}
@@ -244,9 +242,9 @@ class CI_Output {
 	 * @param	array
 	 * @return	void
 	 */
-	public function set_profiler_sections($sections) {
+	public function setprofiler_sects($sections) {
 		foreach ($sections as $section => $enable) {
-			$this->_profiler_sections[$section] = ($enable !== FALSE) ? TRUE : FALSE;
+			$this->profiler_sects[$section] = ($enable !== FALSE) ? TRUE : FALSE;
 		}
 
 		return $this;
@@ -259,7 +257,7 @@ class CI_Output {
 	 * @return	void
 	 */
 	public function cache($time) {
-		$this->cache_expiration = ( ! is_numeric($time)) ? 0 : $time;
+		$this->cache_expiration = is_numeric($time) ? $time : 0;
 		return $this;
 	}
 
@@ -285,7 +283,8 @@ class CI_Output {
 		// Do we need to write a cache file? Only if the controller does not have its
 		// own _output() method and we are not dealing with a cache file, which we
 		// can determine by the existence of the $CI->routed object
-		if ($this->cache_expiration > 0 && isset($this->CI->routed) && ! method_exists($this->CI->routed, '_output')) {
+		if ($this->cache_expiration > 0 && isset($this->CI->routed) &&
+		!$this->CI->is_callable($this->CI->routed, '_output')) {
 			$this->_write_cache($output);
 		}
 
@@ -301,9 +300,10 @@ class CI_Output {
 		}
 
 		// Is compression requested?
-		if ($this->CI->config->item('compress_output') === TRUE && $this->_zlib_oc == FALSE) {
+		if ($this->CI->config->item('compress_output') === TRUE && $this->zlib_oc == FALSE) {
 			if (extension_loaded('zlib')) {
-				if (isset($_SERVER['HTTP_ACCEPT_ENCODING']) && strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') !== FALSE) {
+				if (isset($_SERVER['HTTP_ACCEPT_ENCODING']) &&
+				strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') !== FALSE) {
 					ob_start('ob_gzhandler');
 				}
 			}
@@ -319,7 +319,7 @@ class CI_Output {
 		// Does the routed controller object exist?
 		// If not we know we are dealing with a cache file so we'll
 		// simply echo out the data and exit.
-		if ( ! isset($this->CI->routed)) {
+		if (!isset($this->CI->routed)) {
 			echo $output;
 			$this->CI->log_message('debug', 'Final output sent to browser');
 			if ($elapsed != '') {
@@ -333,16 +333,15 @@ class CI_Output {
 		if ($this->enable_profiler == TRUE) {
 			$this->CI->load->library('profiler');
 
-			if ( ! empty($this->_profiler_sections)) {
-				$this->CI->profiler->set_sections($this->_profiler_sections);
+			if (!empty($this->profiler_sects)) {
+				$this->CI->profiler->set_sects($this->profiler_sects);
 			}
 
 			// If the output data contains closing </body> and </html> tags
 			// we will remove them and add them back after we insert the profile data
 			if (preg_match('|</body>.*?</html>|is', $output)) {
-				$output  = preg_replace('|</body>.*?</html>|is', '', $output);
-				$output .= $this->CI->profiler->run();
-				$output .= '</body></html>';
+				$output = preg_replace('|</body>.*?</html>|is', '', $output).$this->CI->profiler->run().
+					'</body></html>';
 			}
 			else {
 				$output .= $this->CI->profiler->run();
@@ -351,7 +350,7 @@ class CI_Output {
 
 		// Does the controller contain a function named _output()?
 		// If so send the output there. Otherwise, echo it.
-		if (method_exists($this->CI->routed, '_output')) {
+		if ($this->CI->is_callable($this->CI->routed, '_output')) {
 			$this->CI->routed->_output($output);
 		}
 		else {
@@ -396,7 +395,7 @@ class CI_Output {
 		fclose($fp);
 
 		// Strip out the embedded timestamp
-		if ( ! preg_match('/(\d+TS--->)/', $cache, $match)) {
+		if (!preg_match('/(\d+TS--->)/', $cache, $match)) {
 			return FALSE;
 		}
 
@@ -426,7 +425,7 @@ class CI_Output {
 
 		$cache_path = ($path == '') ? APPPATH.'cache/' : $path;
 
-		if ( ! is_dir($cache_path) || ! $this->CI->is_really_writable($cache_path)) {
+		if (!is_dir($cache_path) || !$this->CI->is_really_writable($cache_path)) {
 			$this->CI->log_message('error', 'Unable to write cache file: '.$cache_path);
 			return;
 		}
@@ -435,7 +434,7 @@ class CI_Output {
 
 		$cache_path .= md5($uri);
 
-		if ( ! $fp = @fopen($cache_path, FOPEN_WRITE_CREATE_DESTRUCTIVE)) {
+		if (!($fp = @fopen($cache_path, FOPEN_WRITE_CREATE_DESTRUCTIVE))) {
 			$this->CI->log_message('error', 'Unable to write cache file: '.$cache_path);
 			return;
 		}

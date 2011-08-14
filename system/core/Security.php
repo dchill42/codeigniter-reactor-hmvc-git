@@ -23,13 +23,13 @@
  * @link		http://codeigniter.com/user_guide/libraries/security.html
  */
 class CI_Security {
-	protected $CI;
-	protected $_xss_hash			= '';
-	protected $_csrf_hash			= '';
-	protected $_csrf_expire			= 7200;	// Two hours (in seconds)
-	protected $_csrf_token_name		= 'ci_csrf_token';
-	protected $_csrf_cookie_name	= 'ci_csrf_token';
-	protected $_never_allowed_str = array(	// never allowed, string replacement
+	protected $CI					= NULL;
+	protected $xss_hash				= '';
+	protected $csrf_hash			= '';
+	protected $csrf_expire			= 7200;	// Two hours (in seconds)
+	protected $csrf_token_name		= 'ci_csrf_token';
+	protected $csrf_cookie_name		= 'ci_csrf_token';
+	protected $never_allowed_str	= array(	// never allowed, string replacement
 		'document.cookie'	=> '[removed]',
 		'document.write'	=> '[removed]',
 		'.parentNode'		=> '[removed]',
@@ -40,7 +40,7 @@ class CI_Security {
 		'-->'				=> '--&gt;',
 		'<![CDATA['			=> '&lt;![CDATA['
 	);
-	protected $_never_allowed_regex = array(	// never allowed, regex replacement
+	protected $never_allowed_regex	= array(	// never allowed, regex replacement
 		'javascript\s*:'			=> '[removed]',
 		'expression\s*(\(|&\#40;)'	=> '[removed]', // CSS and IE
 		'vbscript\s*:'				=> '[removed]', // IE, surprise!
@@ -63,11 +63,11 @@ class CI_Security {
 
 		// Append application specific cookie prefix
 		if (($pre = $CI->config->item('cookie_prefix'))) {
-			$this->_csrf_cookie_name = $pre.$this->_csrf_cookie_name;
+			$this->csrf_cookie_name = $pre.$this->csrf_cookie_name;
 		}
 
 		// Set the CSRF hash
-		$this->_csrf_set_hash();
+		$this->csrf_set_hash();
 
 		$CI->log_message('debug', 'Security Class Initialized');
 	}
@@ -84,21 +84,21 @@ class CI_Security {
 		}
 
 		// Do the tokens exist in both the _POST and _COOKIE arrays?
-		if ( ! isset($_POST[$this->_csrf_token_name]) || ! isset($_COOKIE[$this->_csrf_cookie_name])) {
+		if ( ! isset($_POST[$this->csrf_token_name]) || ! isset($_COOKIE[$this->csrf_cookie_name])) {
 			$this->csrf_show_error();
 		}
 
 		// Do the tokens match?
-		if ($_POST[$this->_csrf_token_name] != $_COOKIE[$this->_csrf_cookie_name]) {
+		if ($_POST[$this->csrf_token_name] != $_COOKIE[$this->csrf_cookie_name]) {
 			$this->csrf_show_error();
 		}
 
 		// We kill this since we're done and we don't want to polute the _POST array
-		unset($_POST[$this->_csrf_token_name]);
+		unset($_POST[$this->csrf_token_name]);
 
 		// Nothing should last forever
-		unset($_COOKIE[$this->_csrf_cookie_name]);
-		$this->_csrf_set_hash();
+		unset($_COOKIE[$this->csrf_cookie_name]);
+		$this->csrf_set_hash();
 		$this->csrf_set_cookie();
 
 		$this->CI->log_message('debug', 'CSRF token verified ');
@@ -112,7 +112,7 @@ class CI_Security {
 	 * @return	object
 	 */
 	public function csrf_set_cookie() {
-		$expire = time() + $this->_csrf_expire;
+		$expire = time() + $this->csrf_expire;
 		$secure_cookie = ($this->CI->config->item('cookie_secure') === TRUE) ? 1 : 0;
 
 		if ($secure_cookie) {
@@ -123,7 +123,7 @@ class CI_Security {
 			}
 		}
 
-		setcookie($this->_csrf_cookie_name, $this->_csrf_hash, $expire, $this->CI->config->item('cookie_path'),
+		setcookie($this->csrf_cookie_name, $this->csrf_hash, $expire, $this->CI->config->item('cookie_path'),
 			$this->CI->config->item('cookie_domain'), $secure_cookie);
 
 		$this->CI->log_message('debug', 'CRSF cookie Set');
@@ -148,7 +148,7 @@ class CI_Security {
 	 * @return	string 	self::_csrf_hash
 	 */
 	public function get_csrf_hash() {
-		return $this->_csrf_hash;
+		return $this->csrf_hash;
 	}
 
 	/**
@@ -159,7 +159,7 @@ class CI_Security {
 	 * @return	string 	self::csrf_token_name
 	 */
 	public function get_csrf_token_name() {
-		return $this->_csrf_token_name;
+		return $this->csrf_token_name;
 	}
 
 	/**
@@ -201,7 +201,7 @@ class CI_Security {
 		$str = $this->CI->remove_invisible_characters($str);
 
 		// Validate Entities in URLs
-		$str = $this->_validate_entities($str);
+		$str = $this->validate_entities($str);
 
 		// URL Decode
 		// Just in case stuff like this is submitted:
@@ -231,7 +231,7 @@ class CI_Security {
 		$converted_string = $str;
 
 		// Remove Strings that are never allowed
-		$str = $this->_do_never_allowed($str);
+		$str = $this->do_never_allowed($str);
 
 		// Makes PHP tags safe
 		// Note: XML tags are inadvertently replaced too:
@@ -243,7 +243,7 @@ class CI_Security {
 			$str = preg_replace('/<\?(php)/i', '&lt;?\\1', $str);
 		}
 		else {
-			$str = str_replace(array('<?', '?'.'>'),  array('&lt;?', '?&gt;'), $str);
+			$str = str_replace(array('<?', '?'.'>'), array('&lt;?', '?&gt;'), $str);
 		}
 
 		// Compact any exploded words
@@ -289,7 +289,7 @@ class CI_Security {
 		unset($original);
 
 		// Remove evil attributes such as style, onclick and xmlns
-		$str = $this->_remove_evil_attributes($str, $is_image);
+		$str = $this->remove_evil_attributes($str, $is_image);
 
 		// Sanitize naughty HTML elements
 		// If a tag containing any of the words in the list below is found, the tag gets converted to entities.
@@ -313,7 +313,7 @@ class CI_Security {
 
 		// Final clean up
 		// This adds a bit of extra precaution in case something got through the above filters
-		$str = $this->_do_never_allowed($str);
+		$str = $this->do_never_allowed($str);
 
 		// Images are Handled in a Special Way
 		// Essentially, we want to know that after all of the character conversion
@@ -335,7 +335,7 @@ class CI_Security {
 	 * @return	string
 	 */
 	public function xss_hash() {
-		if ($this->_xss_hash == '') {
+		if ($this->xss_hash == '') {
 			if (phpversion() >= 4.2) {
 				mt_srand();
 			}
@@ -343,10 +343,10 @@ class CI_Security {
 				mt_srand(hexdec(substr(md5(microtime()), -8)) & 0x7fffffff);
 			}
 
-			$this->_xss_hash = md5(time() + mt_rand(0, 1999999999));
+			$this->xss_hash = md5(time() + mt_rand(0, 1999999999));
 		}
 
-		return $this->_xss_hash;
+		return $this->xss_hash;
 	}
 
 	/**
@@ -488,7 +488,7 @@ class CI_Security {
 	 * @return	string
 	 */
 	public function _js_link_removal($match) {
-		$attributes = $this->_filter_attributes(str_replace(array('<', '>'), '', $match[1]));
+		$attributes = $this->filter_attributes(str_replace(array('<', '>'), '', $match[1]));
 
 		return str_replace($match[1], preg_replace('#href=.*?(alert\(|alert&\#40;|javascript\:|livescript\:|'.
 			'mocha\:|charset\=|window\.|document\.|\.cookie|<script|<xss|base64\s*,)#si', '', $attributes), $match[0]);
@@ -507,7 +507,7 @@ class CI_Security {
 	 * @return	string
 	 */
 	public function _js_img_removal($match) {
-		$attributes = $this->_filter_attributes(str_replace(array('<', '>'), '', $match[1]));
+		$attributes = $this->filter_attributes(str_replace(array('<', '>'), '', $match[1]));
 
 		return str_replace($match[1], preg_replace('#src=.*?(alert\(|alert&\#40;|javascript\:|livescript\:|'.
 			'mocha\:|charset\=|window\.|document\.|\.cookie|<script|<xss|base64\s*,)#si', '', $attributes), $match[0]);
@@ -633,11 +633,11 @@ class CI_Security {
 	 * @return	string
 	 */
 	protected function _do_never_allowed($str) {
-		foreach ($this->_never_allowed_str as $key => $val) {
+		foreach ($this->never_allowed_str as $key => $val) {
 			$str = str_replace($key, $val, $str);
 		}
 
-		foreach ($this->_never_allowed_regex as $key => $val) {
+		foreach ($this->never_allowed_regex as $key => $val) {
 			$str = preg_replace('#'.$key.'#i', $val, $str);
 		}
 
@@ -651,18 +651,18 @@ class CI_Security {
 	 * @return	string
 	 */
 	protected function _csrf_set_hash() {
-		if ($this->_csrf_hash == '') {
+		if ($this->csrf_hash == '') {
 			// If the cookie exists we will use it's value. We don't necessarily
 			// want to regenerate it with each page load since a page could contain
 			// embedded sub-pages causing this feature to fail
-			if (isset($_COOKIE[$this->_csrf_cookie_name]) && $_COOKIE[$this->_csrf_cookie_name] != '') {
-				return $this->_csrf_hash = $_COOKIE[$this->_csrf_cookie_name];
+			if (isset($_COOKIE[$this->csrf_cookie_name]) && $_COOKIE[$this->csrf_cookie_name] != '') {
+				return $this->csrf_hash = $_COOKIE[$this->csrf_cookie_name];
 			}
 
-			return $this->_csrf_hash = md5(uniqid(rand(), TRUE));
+			return $this->csrf_hash = md5(uniqid(rand(), TRUE));
 		}
 
-		return $this->_csrf_hash;
+		return $this->csrf_hash;
 	}
 }
 // END Security Class

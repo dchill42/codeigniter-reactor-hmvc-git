@@ -25,8 +25,8 @@
  * @link		http://codeigniter.com/user_guide/libraries/input.html
  */
 class CI_Input {
-	protected $CI;
-	protected $headers			= array();
+	protected $CI					= NULL;
+	protected $headers				= array();
 	public $ip_address				= FALSE;
 	public $user_agent				= FALSE;
 	public $_allow_get_array		= TRUE;
@@ -65,7 +65,7 @@ class CI_Input {
 	 * @return	string
 	 */
 	protected function _fetch_from_array(&$array, $index = '', $xss_clean = FALSE) {
-		if ( ! isset($array[$index])) {
+		if (!isset($array[$index])) {
 			return FALSE;
 		}
 
@@ -85,7 +85,7 @@ class CI_Input {
 	 */
 	public function get($index = NULL, $xss_clean = FALSE) {
 		// Check if a field has been provided
-		if ($index === NULL AND ! empty($_GET)) {
+		if ($index === NULL && !empty($_GET)) {
 			$get = array();
 
 			// loop through the full _GET array
@@ -107,7 +107,7 @@ class CI_Input {
 	 */
 	public function post($index = NULL, $xss_clean = FALSE) {
 		// Check if a field has been provided
-		if ($index === NULL AND ! empty($_POST)) {
+		if ($index === NULL && !empty($_POST)) {
 			$post = array();
 
 			// Loop through the full _POST array and return it
@@ -116,7 +116,7 @@ class CI_Input {
 			}
 			return $post;
 		}
-		
+
 		return $this->_fetch_from_array($_POST, $index, $xss_clean);
 	}
 
@@ -151,7 +151,7 @@ class CI_Input {
 	 * @param	mixed
 	 * @param	string	the value of the cookie
 	 * @param	string	the number of seconds until expiration
-	 * @param	string	the cookie domain.  Usually:  .yourdomain.com
+	 * @param	string	the cookie domain. Usually: .yourdomain.com
 	 * @param	string	the cookie path
 	 * @param	string	the cookie prefix
 	 * @param	bool	true makes the cookie secure
@@ -168,17 +168,24 @@ class CI_Input {
 			}
 		}
 
-		if ($prefix == '' AND $this->CI->config->item('cookie_prefix') != '') {
-			$prefix = $this->CI->config->item('cookie_prefix');
+		$item = $this->CI->config->item('cookie_prefix');
+		if ($prefix == '' && !empty($item)) {
+			$prefix = $item;
 		}
-		if ($domain == '' AND $this->CI->config->item('cookie_domain') != '') {
-			$domain = $this->CI->config->item('cookie_domain');
+
+		$item = $this->CI->config->item('cookie_domain');
+		if ($domain == '' && !empty($item)) {
+			$domain = $item;
 		}
-		if ($path == '/' AND $this->CI->config->item('cookie_path') != '/') {
-			$path = $this->CI->config->item('cookie_path');
+
+		$item = $this->CI->config->item('cookie_path');
+		if ($path == '/' && !empty($item) && $item != '/') {
+			$path = $item;
 		}
-		if ($secure == FALSE AND $this->CI->config->item('cookie_secure') != FALSE) {
-			$secure = $this->CI->config->item('cookie_secure');
+
+		$item = $this->CI->config->item('cookie_secure');
+		if ($secure == FALSE && $item != FALSE) {
+			$secure = $item;
 		}
 
 		if ( ! is_numeric($expire)) {
@@ -220,7 +227,7 @@ class CI_Input {
 			$this->ip_address = in_array($_SERVER['REMOTE_ADDR'], $proxies) ?
 				$_SERVER['HTTP_X_FORWARDED_FOR'] : $_SERVER['REMOTE_ADDR'];
 		}
-		elseif ($this->server('REMOTE_ADDR') AND $this->server('HTTP_CLIENT_IP')) {
+		elseif ($this->server('REMOTE_ADDR') && $this->server('HTTP_CLIENT_IP')) {
 			$this->ip_address = $_SERVER['HTTP_CLIENT_IP'];
 		}
 		elseif ($this->server('REMOTE_ADDR')) {
@@ -265,14 +272,15 @@ class CI_Input {
 		if (count($ip_segments) != 4) {
 			return FALSE;
 		}
+
 		// IP can not start with 0
 		if ($ip_segments[0][0] == '0') {
 			return FALSE;
 		}
+
 		// Check each segment
 		foreach ($ip_segments as $segment) {
-			// IP segments must be digits and can not be
-			// longer than 3 digits or greater then 255
+			// IP segments must be digits and can not be longer than 3 digits or greater then 255
 			if ($segment == '' OR preg_match('/[^0-9]/', $segment) OR $segment > 255 OR strlen($segment) > 3) {
 				return FALSE;
 			}
@@ -292,7 +300,6 @@ class CI_Input {
 		}
 
 		$this->user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : FALSE;
-
 		return $this->user_agent;
 	}
 
@@ -312,7 +319,7 @@ class CI_Input {
 	 */
 	protected function _sanitize_globals() {
 		// It would be "wrong" to unset any of these GLOBALS.
-		$protected = array('_SERVER', '_GET', '_POST', '_FILES', '_REQUEST', 
+		$protected = array('_SERVER', '_GET', '_POST', '_FILES', '_REQUEST',
 			'_SESSION', '_ENV', 'GLOBALS', 'HTTP_RAW_POST_DATA',
 			'system_folder', 'application_folder', 'BM', 'EXT',
 			'CFG', 'URI', 'RTR', 'OUT', 'IN');
@@ -320,15 +327,15 @@ class CI_Input {
 		// Unset globals for securiy.
 		// This is effectively the same as register_globals = off
 		foreach (array($_GET, $_POST, $_COOKIE) as $global) {
-			if ( ! is_array($global)) {
-				if ( ! in_array($global, $protected)) {
+			if (!is_array($global)) {
+				if (!in_array($global, $protected)) {
 					global $$global;
 					$$global = NULL;
 				}
 			}
 			else {
 				foreach ($global as $key => $val) {
-					if ( ! in_array($key, $protected)) {
+					if (!in_array($key, $protected)) {
 						global $$key;
 						$$key = NULL;
 					}
@@ -341,7 +348,7 @@ class CI_Input {
 			$_GET = array();
 		}
 		else {
-			if (is_array($_GET) AND count($_GET) > 0) {
+			if (is_array($_GET) && count($_GET) > 0) {
 				foreach ($_GET as $key => $val) {
 					$_GET[$this->_clean_input_keys($key)] = $this->_clean_input_data($val);
 				}
@@ -349,14 +356,14 @@ class CI_Input {
 		}
 
 		// Clean $_POST Data
-		if (is_array($_POST) AND count($_POST) > 0) {
+		if (is_array($_POST) && count($_POST) > 0) {
 			foreach ($_POST as $key => $val) {
 				$_POST[$this->_clean_input_keys($key)] = $this->_clean_input_data($val);
 			}
 		}
 
 		// Clean $_COOKIE Data
-		if (is_array($_COOKIE) AND count($_COOKIE) > 0) {
+		if (is_array($_COOKIE) && count($_COOKIE) > 0) {
 			// Also get rid of specially treated cookies that might be set by a server
 			// or silly application, that are of no use to a CI application anyway
 			// but that when present will trip our 'Disallowed Key Characters' alarm
@@ -402,7 +409,7 @@ class CI_Input {
 		}
 
 		// We strip slashes if magic quotes is on to keep things consistent
-		if (function_exists('get_magic_quotes_gpc') AND get_magic_quotes_gpc()) {
+		if (function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc()) {
 			$str = stripslashes($str);
 		}
 
@@ -410,7 +417,7 @@ class CI_Input {
 		if (UTF8_ENABLED === TRUE) {
 			$str = $this->CI->utf8->clean_string($str);
 		}
-		
+
 		// Remove control characters
 		$str = $this->CI->remove_invisible_characters($str);
 
@@ -441,7 +448,7 @@ class CI_Input {
 	 * @return	string
 	 */
 	protected function _clean_input_keys($str) {
-		if ( ! preg_match('/^[a-z0-9:_\/-]+$/i', $str)) {
+		if (!preg_match('/^[a-z0-9:_\/-]+$/i', $str)) {
 			exit('Disallowed Key Characters.');
 		}
 
@@ -456,7 +463,7 @@ class CI_Input {
 	/**
 	 * Request Headers
 	 *
-	 * In Apache, you can simply call apache_request_headers(), however for 
+	 * In Apache, you can simply call apache_request_headers(), however for
 	 * people running other webservers the function is undefined.
 	 *
 	 * @return	array
@@ -481,10 +488,10 @@ class CI_Input {
 		foreach ($headers as $key => $val) {
 			$key = str_replace('_', ' ', strtolower($key));
 			$key = str_replace(' ', '-', ucwords($key));
-			
+
 			$this->headers[$key] = $val;
 		}
-		
+
 		return $this->headers;
 	}
 
@@ -501,8 +508,8 @@ class CI_Input {
 		if (empty($this->headers)) {
 			$this->request_headers();
 		}
-		
-		if ( ! isset($this->headers[$index])) {
+
+		if (!isset($this->headers[$index])) {
 			return FALSE;
 		}
 
@@ -510,7 +517,7 @@ class CI_Input {
 			return $this->CI->security->xss_clean($this->headers[$index]);
 		}
 
-		return $this->headers[$index];		
+		return $this->headers[$index];
 	}
 
 	/**

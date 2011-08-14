@@ -27,11 +27,11 @@
  * @link		http://codeigniter.com/user_guide/libraries/uri.html
  */
 class CI_URI extends CI_RouterBase {
-	protected $CI;
+	protected $CI			= NULL;
 	protected $keyval		= array();
 	protected $segments		= array();
 	protected $rsegments	= array();
-	protected $uri_string;
+	protected $uri_string	= '';
 
 	/**
 	 * Constructor
@@ -54,14 +54,14 @@ class CI_URI extends CI_RouterBase {
 	 * @return	string
 	 */
 	public function segment($index, $no_result = FALSE) {
-		return ( ! isset($this->segments[$index])) ? $no_result : $this->segments[$index];
+		return (isset($this->segments[$index]) ? $this->segments[$index] : $no_result);
 	}
 
 	/**
 	 * Fetch a URI "routed" Segment
 	 *
 	 * This function returns the re-routed URI segment (assuming routing rules are used)
-	 * based on the number provided.  If there is no routing this function returns the
+	 * based on the number provided. If there is no routing this function returns the
 	 * same result as $this->segment()
 	 *
 	 * @param	integer
@@ -69,7 +69,7 @@ class CI_URI extends CI_RouterBase {
 	 * @return	string
 	 */
 	public function rsegment($index, $no_result = FALSE) {
-		return ( ! isset($this->rsegments[$index])) ? $no_result : $this->rsegments[$index];
+		return (isset($this->rsegments[$index]) ? $this->rsegments[$index] : $no_result);
 	}
 
 	/**
@@ -198,64 +198,78 @@ class CI_URI extends CI_RouterBase {
 	}
 
 	/**
-	 * Get the URI String
+	 * Get the URI string as an array of segments
 	 *
 	 * @access	protected
-	 * @return	string
+	 * @return	array	uri segments
 	 */
 	protected function _fetch_uri_string() {
-		if (strtoupper($this->CI->config->item('uri_protocol')) == 'AUTO') {
-			// Is the request coming from the command line?
+		// Get configured protocol
+		$proto = strtoupper($this->CI->config->item('uri_protocol'));
+
+		// Find URI according to protocol
+		if ($proto == 'AUTO') {
 			if (defined('STDIN')) {
-				$this->_set_uri_string($this->_parse_cli_args());
-				return;
+				// Request came from the command line
+				$uri = $this->_parse_cli_args();
 			}
-
-			// Let's try the REQUEST_URI first, this will work in most situations
-			if ($uri = $this->_detect_uri()) {
-				$this->_set_uri_string($uri);
-				return;
+			else if ($path = $this->_detect_uri()) {
+				// The REQUEST_URI will work in most situations
+				$uri = $path;
 			}
-
-			// Is there a PATH_INFO variable?
-			// Note: some servers seem to have trouble with getenv() so we'll test it two ways
-			$path = (isset($_SERVER['PATH_INFO'])) ? $_SERVER['PATH_INFO'] : @getenv('PATH_INFO');
-			if (trim($path, '/') != '' && $path != '/'.SELF) {
-				$this->_set_uri_string($path);
-				return;
+			else {
+				// Is there a PATH_INFO variable?
+				// Note: some servers seem to have trouble with getenv() so we'll test it two ways
+				$path = (isset($_SERVER['PATH_INFO'])) ? $_SERVER['PATH_INFO'] : @getenv('PATH_INFO');
+				if (trim($path, '/') != '' && $path != '/'.SELF) {
+					$uri = $path;
+				}
+				else {
+					// No PATH_INFO?... What about QUERY_STRING?
+					$path = (isset($_SERVER['QUERY_STRING'])) ? $_SERVER['QUERY_STRING'] : @getenv('QUERY_STRING');
+					if (trim($path, '/') != '') {
+						$uri = $path;
+					}
+					else if (is_array($_GET) && count($_GET) == 1 && trim(key($_GET), '/') != '') {
+						// As a last ditch effort use the $_GET array
+						$uri = key($_GET);
+					}
+					else {
+						// We've exhausted all our options...
+						$this->uri_string = '';
+						return array();
+					}
+				}
 			}
-
-			// No PATH_INFO?... What about QUERY_STRING?
-			$path = (isset($_SERVER['QUERY_STRING'])) ? $_SERVER['QUERY_STRING'] : @getenv('QUERY_STRING');
-			if (trim($path, '/') != '') {
-				$this->_set_uri_string($path);
-				return;
-			}
-
-			// As a last ditch effort lets try using the $_GET array
-			if (is_array($_GET) && count($_GET) == 1 && trim(key($_GET), '/') != '') {
-				$this->_set_uri_string(key($_GET));
-				return;
-			}
-
-			// We've exhausted all our options...
-			$this->uri_string = '';
-			return;
+		}
+		else if ($proto == 'REQUEST_URI') {
+			$uri = $this->_detect_uri();
+		}
+		else if ($proto == 'CLI') {
+			$uri = $this->_parse_cli_args();
+		}
+		else {
+			$uri = (isset($_SERVER[$proto])) ? $_SERVER[$proto] : @getenv($proto);
 		}
 
-		$uri = strtoupper($this->CI->config->item('uri_protocol'));
-
-		if ($uri == 'REQUEST_URI') {
-			$this->_set_uri_string($this->_detect_uri());
-			return;
+		// Get path, remove any suffix, and set as URI
+		if ($this->CI->config->item('url_suffix') != '') {
+			$uri = preg_replace('|'.preg_quote($this->config->item('url_suffix')).'$|', '', $uri);
 		}
-		elseif ($uri == 'CLI') {
-			$this->_set_uri_string($this->_parse_cli_args());
-			return;
+		$this->_set_uri_string($uri);
+
+		// Break URI into segments
+		foreach (explode('/', preg_replace('|/*(.+?)/*$|', '\\1', $this->uri_string)) as $val) {
+			// Filter segments for security
+			$val = trim($this->_filter_uri($val));
+
+			if ($val != '') {
+				$this->segments[] = $val;
+			}
 		}
 
-		$path = (isset($_SERVER[$uri])) ? $_SERVER[$uri] : @getenv($uri);
-		$this->_set_uri_string($path);
+		// Return segments
+		return $this->segments;
 	}
 
 	/**
@@ -282,37 +296,6 @@ class CI_URI extends CI_RouterBase {
 		$good	= array('&#36;',	'&#40;',	'&#41;',	'&#40;',	'&#41;');
 
 		return str_replace($bad, $good, $str);
-	}
-
-	/**
-	 * Remove the suffix from the URL if needed
-	 *
-	 * @access	protected
-	 * @return	void
-	 */
-	protected function _remove_url_suffix() {
-		if  ($this->CI->config->item('url_suffix') != '') {
-			$this->uri_string =
-				preg_replace('|'.preg_quote($this->config->item('url_suffix')).'$|', '', $this->uri_string);
-		}
-	}
-
-	/**
-	 * Explode the URI Segments. The individual segments will
-	 * be stored in the $this->segments array.
-	 *
-	 * @access	protected
-	 * @return	void
-	 */
-	protected function _explode_segments() {
-		foreach (explode('/', preg_replace('|/*(.+?)/*$|', '\\1', $this->uri_string)) as $val) {
-			// Filter segments for security
-			$val = trim($this->_filter_uri($val));
-
-			if ($val != '') {
-				$this->segments[] = $val;
-			}
-		}
 	}
 
 	/**
@@ -367,7 +350,7 @@ class CI_URI extends CI_RouterBase {
 	 * @return	string
 	 */
 	protected function _detect_uri() {
-		if ( ! isset($_SERVER['REQUEST_URI']) OR ! isset($_SERVER['SCRIPT_NAME'])) {
+		if (!isset($_SERVER['REQUEST_URI']) || !isset($_SERVER['SCRIPT_NAME'])) {
 			return '';
 		}
 
@@ -375,7 +358,7 @@ class CI_URI extends CI_RouterBase {
 		if (strpos($uri, $_SERVER['SCRIPT_NAME']) === 0) {
 			$uri = substr($uri, strlen($_SERVER['SCRIPT_NAME']));
 		}
-		elseif (strpos($uri, dirname($_SERVER['SCRIPT_NAME'])) === 0) {
+		else if (strpos($uri, dirname($_SERVER['SCRIPT_NAME'])) === 0) {
 			$uri = substr($uri, strlen(dirname($_SERVER['SCRIPT_NAME'])));
 		}
 
@@ -438,7 +421,7 @@ class CI_URI extends CI_RouterBase {
 			$segment_array = 'rsegment_array';
 		}
 
-		if ( ! is_numeric($index)) {
+		if (!is_numeric($index)) {
 			return $default;
 		}
 
@@ -477,7 +460,7 @@ class CI_URI extends CI_RouterBase {
 
 		if (count($default) > 0) {
 			foreach ($default as $val) {
-				if ( ! array_key_exists($val, $retval)) {
+				if (!array_key_exists($val, $retval)) {
 					$retval[$val] = FALSE;
 				}
 			}
@@ -504,7 +487,7 @@ class CI_URI extends CI_RouterBase {
 		if ($where == 'trailing') {
 			$leading	= '';
 		}
-		elseif ($where == 'leading') {
+		else if ($where == 'leading') {
 			$trailing	= '';
 		}
 
