@@ -29,7 +29,7 @@ class CI_Output {
 	protected $final_output;
 	protected $cache_expiration	= 0;
 	protected $headers			= array();
-	protected $mime_types			= array();
+	protected $mime_types		= array();
 	protected $enable_profiler	= FALSE;
 	protected $_zlib_oc			= FALSE;
 	protected $_profiler_sections = array();
@@ -45,8 +45,10 @@ class CI_Output {
 		$this->_zlib_oc = @ini_get('zlib.output_compression');
 
 		// Get mime types for later
-		include($CI->get_env_path('mimes.php'));
-		$this->mime_types = $mimes;
+		$mimes = CodeIgniter::get_config('mimes.php', 'mimes');
+		if (is_array($mimes)) {
+			$this->mime_types = $mimes;
+		}
 
 		$CI->log_message('debug', 'Output Class Initialized');
 	}

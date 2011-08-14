@@ -42,20 +42,20 @@ class CI_Config {
 	public function __construct($CI) {
 		// Attach parent reference
 		$this->CI =& $CI;
+	}
 
-		// Get path relative to ENVIRONMENT
-		$file_path = $CI->get_env_path('config.php');
-
-		// Fetch the config file
-		if ( ! file_exists($file_path)) {
-			exit('The configuration file does not exist.');
-		}
-		require($file_path);
-
-		// Does the $config array exist in the file?
-		if ( ! isset($config) || ! is_array($config)) {
-			exit('Your config file does not appear to be formatted correctly.');
-		}
+	/**
+	 * Initialize configuration
+	 *
+	 * This function is called by CodeIgniter immediately after instantiation to
+	 * set the primary configuration.
+	 *
+	 * @access	private
+	 * @param	array	configuration
+	 * @return	void
+	 */
+	public function _init($config) {
+		// Initialize config array
 		$this->config =& $config;
 
 		// Set the base_url automatically if none was provided
@@ -85,34 +85,45 @@ class CI_Config {
 		// Strip .php from file
 		$file = str_replace('.php', '', $file);
 
-		// Get config array and check result
-		$config = $this->get($file, $fail_gracefully);
-		if ($config === FALSE) {
-			// Graceful failure - just return FALSE
-			return FALSE;
+		// Make sure file isn't already loaded
+		if (in_array($file, $this->is_loaded)) {
+			return TRUE;
 		}
 
-		// Make sure file isn't already loaded
-		if ( ! in_array($file, $this->is_loaded)) {
-			// Check for sections
-			if ($use_sections === TRUE) {
-				// Merge or set section
-				if (isset($this->config[$file])) {
-					$this->config[$file] = array_merge($this->config[$file], $config);
-				}
-				else {
-					$this->config[$file] = $config;
-				}
+		// Get config array and check result
+		$config = CodeIgniter::get_config($file.'.php', $file);
+		if ($config === FALSE) {
+			if ($fail_gracefully) {
+				return FALSE;
+			}
+			$this->CI->show_error('The configuration file '.$file.'.php does not exist.');
+		}
+		else if (is_string($config)) {
+			$this->CI->log_message('debug', 'Invalid config file: '.$config);
+			if ($fail_gracefully === TRUE) {
+				return FALSE;
+			}
+			$this->CI->show_error('Your '.$config.' file does not appear to contain a valid configuration array.');
+		}
+
+		// Check for sections
+		if ($use_sections === TRUE) {
+			// Merge or set section
+			if (isset($this->config[$file])) {
+				$this->config[$file] = array_merge($this->config[$file], $config);
 			}
 			else {
-				// Merge config
-				$this->config = array_merge($this->config, $config);
+				$this->config[$file] = $config;
 			}
-
-			// Mark file as loaded
-			$this->is_loaded[] = $file;
+		}
+		else {
+			// Merge config
+			$this->config = array_merge($this->config, $config);
 		}
 
+		// Mark file as loaded and log success
+		$this->is_loaded[] = $file;
+		$this->CI->log_message('debug', 'Config file loaded: '.$file.'.php');
 		return TRUE;
 	}
 
@@ -122,50 +133,22 @@ class CI_Config {
 	 * Reads and merges config arrays from named config files
 	 *
 	 * @param	string	the	config file name
-	 * @param	boolean	TRUE if errors should just return FALSE, otherwise an error message is displayed
+	 * @param	string	array name
 	 * @return	mixed	merged config if found, otherwise FALSE
 	 */
-	public function get($file, $fail_gracefully = FALSE) {
-		// Ensure file ends with .php
-		if (!preg_match('/\.php$/', $file)) {
-			$file .= '.php';
+	public function get($file, $name) {
+		// Load file(s) and check result
+		$config = CodeIgniter::get_config($file.'.php', $name);
+		if ($config === FALSE) {
+			return FALSE;
+		}
+		else if (is_string($config)) {
+			$this->CI->log_message('debug', 'Invalid config file: '.$config);
+			return FALSE;
 		}
 
-		// Merge arrays from all viable config paths
-		$merged = array();
-		foreach ($this->CI->get_env_path($file, TRUE) as $path) {
-			// Include file
-			include($path);
-
-			// Check for $config array
-			if ( ! is_array($config)) {
-				// Invalid - quit or exit
-				$this->CI->log_message('debug', 'Invalid config file: '.$path);
-				if ($fail_gracefully === TRUE) {
-					return FALSE;
-				}
-				$this->CI->show_error('Your '.$path.' file does not appear to contain a valid configuration array.');
-			}
-
-			// Merge config and unset local
-			$merged = array_merge($merged, $config);
-			unset($config);
-
-			// Log success for this file
-			$this->CI->log_message('debug', 'Config file loaded: '.$path);
-		}
-
-		// Test for merged config
-		if (empty($merged)) {
-			// None - quit or exit
-			if ($fail_gracefully === TRUE) {
-				return FALSE;
-			}
-			$this->CI->show_error('The configuration file '.$file.' does not exist.');
-		}
-
-		// Return merged config
-		return $merged;
+		// Return merged array
+		return $config;
 	}
 
 	/**

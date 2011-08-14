@@ -140,13 +140,10 @@ class CI_Router extends CI_RouterBase {
 		}
 
 		// Load the routes.php file.
-		$path = $this->CI->get_env_path('routes.php');
-		if (file_exists($path)) {
-			include($path);
+		$route = CodeIgniter::get_config('routes.php', 'route');
+		if (is_array($route)) {
+			$this->routes = $route;
 		}
-
-		$this->routes = ( ! isset($route) OR ! is_array($route)) ? array() : $route;
-		unset($route);
 
 		// Set the default controller so we can display it in the event
 		// the URI doesn't correlated to a valid controller.

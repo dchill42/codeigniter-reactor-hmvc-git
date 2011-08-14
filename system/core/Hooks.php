@@ -36,14 +36,12 @@ class CI_Hooks {
 		$this->CI =& $CI;
 
 		// Grab the "hooks" definition file.
-		// If there are no hooks, we're done.
-		include($CI->get_env_path('hooks.php'));
-		if ( ! isset($hook) OR ! is_array($hook)) {
-			return;
+		$hook = CodeIgniter::get_config('hooks.php', 'hook');
+		if (is_array($hook)) {
+			$this->hooks = $hook;
 		}
 
-		$this->hooks =& $hook;
-		$this->CI->log_message('debug', 'Hooks Class Initialized');
+		$CI->log_message('debug', 'Hooks Class Initialized');
 	}
 
 	/**

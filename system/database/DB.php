@@ -27,14 +27,11 @@ function &DB($params = '', $active_record_override = NULL) {
 	// Load the DB config file if a DSN string wasn't passed
 	if (is_string($params) AND strpos($params, '://') === FALSE) {
 		// Is the config file in the environment folder?
-		$file_path = $CI->get_env_path('database.php');
-		if (!file_exists($file_path)) {
+		$db = CodeIgniter::get_config('database.php', 'db');
+		if ($db === FALSE) {
 			$CI->show_error('The configuration file database.php does not exist.');
 		}
-
-		include($file_path);
-
-		if ( ! isset($db) OR count($db) == 0) {
+		else if (is_string($db)) {
 			$CI->show_error('No database connection settings were found in the database config file.');
 		}
 

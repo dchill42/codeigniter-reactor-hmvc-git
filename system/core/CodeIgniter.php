@@ -13,6 +13,10 @@
  * @filesource
  */
 
+// Define the CodeIgniter Version and Branch (Core = TRUE, Reactor = FALSE)
+define('CI_VERSION', '2.0.2');
+define('CI_CORE', FALSE);
+
 /**
  * CodeIgniter Loader Base Class
  *
@@ -72,25 +76,22 @@ class CI_RouterBase {
  * @link		http://codeigniter.com/user_guide/general/controllers.html
  */
 class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
-	private static $_ci_instance = NULL;
-	private $_ci_subclass_prefix;
-	private $_ci_config_paths;
-	private $_ci_app_paths;
-	private $_ci_base_paths;
-	private $_ci_classes;
-	private $_ci_ob_level;
+	private static $_ci_instance		= NULL;
+	protected static $_ci_config_paths	= array(APPPATH);
+	protected $_ci_app_paths			= array(APPPATH => TRUE);
+	protected $_ci_base_paths			= array(APPPATH, BASEPATH);
+	protected $_ci_subclass_prefix		= '';
+	protected $_ci_classes				= array();
+	protected $_ci_ob_level				= 0;
 
 	/**
 	 * Constructor
 	 *
-	 * This constructor is private so CodeIgniter can't be instantiated directly.
-	 * Instead, the static CodeIgniter::get_instance() method must be called,
+	 * This constructor is protected so CodeIgniter can't be instantiated directly.
+	 * Instead, the static CodeIgniter::instance() method must be called,
 	 * which enforces the singleton behavior of the object.
 	 */
-	private function __construct() {
-		// Assign single object to static instance
-		self::$_ci_instance = $this;
-
+	protected function __construct() {
 		// Define a custom error handler so we can log PHP errors
 		set_error_handler(array($this, '_exception_handler'));
 
@@ -103,16 +104,8 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			@set_time_limit(300);
 		}
 
-		// Initialize subclass_prefix for config load
-		$this->_ci_subclass_prefix = '';
-
-		// Initialize package paths
-		$this->_ci_config_paths = array(APPPATH);
-		$this->_ci_app_paths = array(APPPATH => TRUE);
-		$this->_ci_base_paths = array(APPPATH, BASEPATH);
-
-		// Initialize classes array
-		$this->_ci_classes = array();
+		// Load the framework constants
+		self::get_config('constants.php');
 
 		// Set initial output buffering level
 		$this->_ci_ob_level = ob_get_level();
@@ -140,64 +133,181 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * Returns singleton instance of CodeIgniter object
 	 * THERE CAN BE ONLY ONE!! (Mu-ha-ha-ha-haaaaa!!)
 	 *
+	 * @param	array	$assign_to_config	from index.php
 	 * @return	object
 	 */
-	public static function &get_instance() {
+	public static function &instance($assign_to_config = NULL) {
 		// Check for existing instance
 		if (is_null(self::$_ci_instance)) {
-			// Instantiate object
-			new CodeIgniter();
+			// Get config file contents and check for errors
+			$config = self::get_config('config.php', 'config');
+			if ($config === FALSE) {
+				exit('The configuration file does not exist.');
+			}
+			else if (is_string($config)) {
+				exit('Your config file '.$config.' does not appear to be formatted correctly.');
+			}
+
+			// Apply any overrides
+			if (is_array($assign_to_config)) {
+				foreach ($assign_to_config as $key => $val) {
+					$config[$key] = $val;
+				}
+			}
+
+			// Get autoload file if present
+			$autoload = self::get_config('autoload.php', 'autoload');
+			if (!is_array($autoload)) {
+				$autoload = array();
+			}
+
+			// Check for subclass prefix
+			$class = 'CodeIgniter';
+			$pre = isset($config['subclass_prefix']) ? $config['subclass_prefix'] : '';
+			if (!empty($pre)) {
+				// Search for a subclass
+				$paths = array(APPPATH);
+
+				// Get any autoloaded package paths
+				if (isset($autoload['packages'])) {
+					foreach ($autoload['packages'] as $package) {
+						$paths = array_unshift($paths, $package);
+					}
+				}
+
+				// Check each path for file
+				$file = 'core/'.$pre.$class.'.php';
+				foreach ($paths as $path) {
+					$file_path = $path.$file;
+					if (file_exists($file_path)) {
+						// Include the source and set the subclass name
+						include($file_path);
+						$class = $pre.$class;
+						break;
+					}
+				}
+			}
+
+			// Instantiate object and assign to static instance
+			self::$_ci_instance = new $class();
+			self::$_ci_instance->init($config, $autoload);
 		}
+
 		return self::$_ci_instance;
 	}
 
 	/**
-	 * Load core class objects
+	 * Initialize configuration
 	 *
-	 * @param	array	$assign_to_config	from index.php
-	 * @param	array	$routing	from index.php
-	 * @return	boolean	FALSE if cache delivered, otherwise TRUE
+	 * This function finishes bootstrapping the CodeIgniter object by loading
+	 * the Config object and installing the primary configuration.
+	 *
+	 * @param	array	config array
+	 * @param	array	autoload array
+	 * @return	void
 	 */
-	public function load_core($assign_to_config, $routing) {
-		// Instantiate the config class
-		$this->_load_core_class('Config');
-
-		// Do we have any manually set config items in the index.php file?
-		if (isset($assign_to_config)) {
-			foreach ($assign_to_config as $key => $val) {
-				$this->config->set_item($key, $val);
-			}
-		}
-
-		// Do we have any autoloaded config files?
-		include_once($this->get_env_path('autoload.php'));
-
-		// Check for autoload array
-		if (is_array($autoload)) {
-			// Autoload package paths first, so they can be searched
-			if (isset($autoload['packages'])) {
-				foreach ($autoload['packages'] as $package_path) {
-					$this->add_package_path($package_path);
-				}
-			}
-
-			// Load any custom config files
-			if (isset($autoload['config'])) {
-				foreach ($autoload['config'] as $val) {
-					$this->config->load($val);
-				}
-			}
-
-			// Save remaining items for second phase
-			$this->_ci_autoload =& $autoload;
-		}
-
+	protected function _init($config, $autoload) {
 		// Establish configured subclass prefix
-		$pre = $this->config->item('subclass_prefix');
-		if ($pre) {
-			$this->_ci_subclass_prefix = $pre;
+		if (isset($config['subclass_prefix'])) {
+			$this->_ci_subclass_prefix = $config['subclass_prefix'];
 		}
 
+		// Autoload package paths so they can be searched
+		if (isset($autoload['packages'])) {
+			foreach ($autoload['packages'] as $package_path) {
+				$this->add_package_path($package_path);
+			}
+		}
+
+		// Instantiate the config class and initialize
+		$this->_load_core_class('Config');
+		$this->config->_init($config);
+
+		// Load any custom config files
+		if (isset($autoload['config'])) {
+			foreach ($autoload['config'] as $val) {
+				$this->config->load($val);
+			}
+		}
+
+		// Save remaining items for second phase
+		$this->_ci_autoload =& $autoload;
+	}
+
+	/**
+	 * Get config file contents
+	 *
+	 * This function searches the package paths for the named config file.
+	 * If $name is defined, it requires the file to contain an array by that name.
+	 * Otherwise, it just includes each matching file found.
+	 *
+	 * @param	string	file name
+	 * @param	string	array name
+	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
+	 *					or FALSE if no matching file found
+	 */
+	public static function get_config($file, $name = NULL) {
+		// Ensure file starts with a slash and ends with .php
+		$file = '/'.ltrim($file, "/\\");
+		if (!preg_match('/\.php$/', $file)) {
+			$file .= '.php';
+		}
+
+		// Set relative file paths to search
+		$files = array();
+		if (defined('ENVIRONMENT')) {
+			// Check ENVIRONMENT for file
+			$files[] = 'config/'.ENVIRONMENT.$file;
+		}
+		$files[] = 'config'.$file;
+
+		// Merge arrays from all viable config paths
+		$merged = array();
+		foreach (self::_ci_config_paths as $path) {
+			// Check each variation
+			foreach ($files as $file) {
+				$file_path = $path.$file;
+				if (file_exists($file_path)) {
+					// Include file
+					include($file_path);
+
+					// See if we have an array to check for
+					if (empty($name)) {
+						// Nope - just note we found something
+						$merged = TRUE;
+						continue;
+					}
+
+					// Check for named array
+					if ( ! is_array($$name)) {
+						// Invalid - return bad filename
+						return $file_path;
+					}
+
+					// Merge config and unset local
+					$merged = array_merge($merged, $$name);
+					unset($$name);
+				}
+			}
+		}
+
+		// Test for merged config
+		if (empty($merged)) {
+			// None - quit
+			return FALSE;
+		}
+
+		// Return merged config
+		return $merged;
+	}
+
+	/**
+	 * Run the CodeIgniter application
+	 *
+	 * @param	array	$routing	from index.php
+	 * @return	void
+	 */
+	public function run($routing) {
 		// Load benchmark if enabled
 		if ($this->config->item('enable_benchmarks')) {
 			$this->_load_core_class('Benchmark');
@@ -229,28 +339,21 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		$this->_load_core_class('Output');
 
 		// Is there a valid cache file? If so, we're done...
-		if ((! isset($this->hooks) || $this->hooks->_call_hook('cache_override') === FALSE) &&
-		$this->output->_display_cache() == TRUE) {
-			// Indicate not to run the controller
-			$continue = FALSE;
-		}
-		else {
-			// Indicate to run the controller
-			$continue = TRUE;
-
+		if ((isset($this->hooks) && $this->hooks->_call_hook('cache_override') === TRUE) ||
+		$this->output->_display_cache() == FALSE) {
 			// Load remaining core classes
 			$this->_load_core_class('Security');
 			$this->_load_core_class('Utf8');
 			$this->_load_core_class('Input');			// Input depends on Security and UTF-8
 			$this->_load_core_class('Lang');
 			$this->_load_core_class('Loader', 'load');	// Loader depends on Lang
-		}
 
-		if (isset($this->benchmark)) {
-			$this->benchmark->mark('loading_time:_base_classes_end');
-		}
+			if (isset($this->benchmark)) {
+				$this->benchmark->mark('loading_time:_base_classes_end');
+			}
 
-		return $continue;
+			$this->run_controller();
+		}
 	}
 
 	/**
@@ -258,7 +361,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 *
 	 * @return	void
 	 */
-	public function run_controller() {
+	protected function run_controller() {
 		// Autoload any remaining resources
 		if (isset($this->_ci_autoload)) {
 			$this->load->_autoloader($this->_ci_autoload);
@@ -406,7 +509,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		$path = $this->_resolve_path($path);
 
 		// Prepend config and library/helper file paths
-		array_unshift($this->_ci_config_paths, $path);
+		array_unshift(self::_ci_config_paths, $path);
 		array_unshift($this->_ci_base_paths, $path);
 
 		// Prepend MVC path with view cascade param
@@ -427,7 +530,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		if ($path == '') {
 			// Shift last added path from each list
 			if ($remove_config_path) {
-				array_shift($this->_ci_config_paths);
+				array_shift(self::_ci_config_paths);
 			}
 			array_shift($this->_ci_base_paths);
 			array_shift($this->_ci_app_paths);
@@ -443,8 +546,8 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 
 		// Unset path from config list
-		if ($remove_config_path && ($key = array_search($path, $this->_ci_config_paths)) !== FALSE) {
-			unset($this->_ci_config_paths[$key]);
+		if ($remove_config_path && ($key = array_search($path, self::_ci_config_paths)) !== FALSE) {
+			unset(self::_ci_config_paths[$key]);
 		}
 
 		// Unset from library/helper list unless base path
@@ -469,60 +572,6 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	public function get_package_paths($include_base = FALSE) {
 		// Just return path list - only the loader needs the MVC cascade feature
 		return $include_base === TRUE ? $this->_ci_base_paths : array_keys($this->_ci_app_paths);
-	}
-
-	/**
-	 * Get config file path relative to ENVIRONMENT
-	 *
-	 * Determines if file exists in the config ENVIRONMENT subdirectory and
-	 * returns the correct path to load from.
-	 *
-	 * @param	string	file
-	 * @param	boolean	TRUE to get all valid files from all paths
-	 * @return	mixed	environment path or FALSE if test enabled and failed
-	 */
-	public function get_env_path($filenm, $all = FALSE) {
-		// Assert leading slash
-		$filenm = '/'.ltrim($filenm, "/\\");
-
-		// Check for all paths flag
-		if ($all) {
-			// Search all paths and collect all valid filenames
-			$found = array();
-
-			// Set relative file paths to search
-			$files = array();
-			if (defined('ENVIRONMENT')) {
-				// Check ENVIRONMENT for file
-				$files[] = 'config/'.ENVIRONMENT.$filenm;
-			}
-			$files[] = 'config'.$filenm;
-
-			// Search paths
-			foreach ($this->_config_paths as $path) {
-				// Check each variation
-				foreach ($files as $file) {
-					if (file_exists($path.$file)) {
-						// Add to found list
-						$found[] = $path.$file;
-					}
-				}
-			}
-
-			// Return results
-			return $found;
-		}
-
-		// Check for file under ENVIRONMENT
-		if (defined('ENVIRONMENT')) {
-			$file_path = APPPATH.'config/'.ENVIRONMENT.$filenm;
-			if (file_exists($file_path)) {
-				return $file_path;
-			}
-		}
-
-		// Just return the regular config path
-		return APPPATH.'config'.$file;
 	}
 
 	/**
@@ -1121,27 +1170,31 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			$obj_name = strtolower($class);
 		}
 
-		// Does the class exist? If so, we're done...
+		// Is the object already loaded? If so, we're done...
 		if ($obj_name !== FALSE && isset($this->$obj_name)) {
 			return;
 		}
 
 		$name = FALSE;
 
-		// Look for the class first in the native system/libraries folder
-		// then in the local application/libraries folder
-		$file = 'core/'.$class.'.php';
-		foreach (array(BASEPATH, APPPATH) as $path) {
-			// See if file exists
-			if (file_exists($path.$file)) {
-				// See if class is already loaded
-				$name = 'CI_'.$class;
-				if (class_exists($name) === FALSE) {
-					// Include file
+		// See if the class already exists
+		$basename = 'CI_'.$class;
+		if (class_exists($basename)) {
+			// Class exists - set base to be attached
+			$name = $basename;
+		}
+		else {
+			// Look for the class first in the native system/libraries folder
+			// then in the local application/libraries folder
+			$file = 'core/'.$class.'.php';
+			foreach (array(BASEPATH, APPPATH) as $path) {
+				// See if file exists
+				if (file_exists($path.$file)) {
+					// Include file and set base to be attached
 					include($path.$file);
+					$name = 'CI_'.$class;
+					break;
 				}
-
-				break;
 			}
 		}
 
@@ -1222,8 +1275,8 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
  * @return	object
  */
 function &get_instance() {
-	// Call static get_instance
-	return CodeIgniter::get_instance();
+	// Call static instance
+	return CodeIgniter::instance();
 }
 
 /**
@@ -1270,22 +1323,9 @@ function log_message($level, $message, $php_error = FALSE) {
  * @link		http://codeigniter.com/user_guide/
  */
 
-// Define the CodeIgniter Version and Branch (Core = TRUE, Reactor = FALSE)
-define('CI_VERSION', '2.0.2');
-define('CI_CORE', FALSE);
-
-// Load the application root
-$CI =& get_instance();
-
-// Load the framework constants
-require($CI->get_env_path('constants.php'));
-
-// Load the core classes and run the controller unless cached
-if ($CI->load_core($assign_to_config, $routing)) {
-	// If the Output class returned a cache above,
-	// we don't need to load and run the actual Controller
-	$CI->run_controller();
-}
+// Load and run the application
+$CI =& CodeIgniter::instance($assign_to_config);
+$CI->run($routing);
 
 /* End of file CodeIgniter.php */
 /* Location: ./system/core/CodeIgniter.php */
