@@ -50,7 +50,7 @@ class CI_Hooks {
 	 * Calls a particular hook
 	 *
 	 * @access	private
-	 * @param	string	the	hook name
+	 * @param	string	the hook name
 	 * @return	mixed
 	 */
 	public function _call_hook($which = '') {

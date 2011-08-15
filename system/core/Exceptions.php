@@ -51,7 +51,7 @@ class CI_Exceptions {
 	public function __construct($CI) {
         $this->CI =& $CI;
 		$this->ob_level = ob_get_level();
-		// Note:  Do not log messages from this constructor.
+		// Note: Do not log messages from this constructor.
 	}
 
 	/**

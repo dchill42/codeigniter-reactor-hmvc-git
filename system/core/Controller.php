@@ -40,7 +40,6 @@ class CI_Controller {
 	 *
 	 * Exposes root object members
 	 *
-	 * @access	private
 	 * @param	string	member name
 	 * @return	mixed
 	 */
@@ -55,7 +54,6 @@ class CI_Controller {
 	 *
 	 * Tests root object member existence
 	 *
-	 * @access  private
 	 * @param   string  member name
 	 * @return  boolean
 	 */
@@ -68,11 +66,11 @@ class CI_Controller {
 	 *
 	 * Returns reference to root object
 	 *
-	 * @return object   Root instance
+	 * @return object	Root instance
 	 */
 	public static function &get_instance() {
 		// Return root instance
-		return CodeIgniter::get_instance();
+		return CodeIgniter::instance();
 	}
 }
 // END Controller class

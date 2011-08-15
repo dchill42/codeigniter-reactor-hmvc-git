@@ -76,7 +76,7 @@ class CI_Config {
 	/**
 	 * Load Config File
 	 *
-	 * @param	string	the	config file name
+	 * @param	string	the config file name
 	 * @param	boolean	if configuration values should be loaded into their own section
 	 * @param	boolean	TRUE if errors should just return FALSE, otherwise an error message is displayed
 	 * @return	boolean	TRUE if the file was loaded correctly, otherwise FALSE
@@ -91,7 +91,7 @@ class CI_Config {
 		}
 
 		// Get config array and check result
-		$config = CodeIgniter::get_config($file.'.php', $file);
+		$config = CodeIgniter::get_config($file.'.php', 'config');
 		if ($config === FALSE) {
 			if ($fail_gracefully) {
 				return FALSE;
@@ -246,8 +246,8 @@ class CI_Config {
 	/**
 	 * Set a config file item
 	 *
-	 * @param	string	the	config item key
-	 * @param	string	the	config item value
+	 * @param	string	the config item key
+	 * @param	string	the config item value
 	 * @return	void
 	 */
 	public function set_item($item, $value) {

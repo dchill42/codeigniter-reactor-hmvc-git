@@ -194,6 +194,144 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	}
 
 	/**
+	 * Get config file contents
+	 *
+	 * This function searches the package paths for the named config file.
+	 * If $name is defined, it requires the file to contain an array by that name
+	 * and merges the arrays if found in multiple files.
+	 * Otherwise, it just includes each matching file found.
+	 *
+	 * @param	string	file name
+	 * @param	string	array name
+	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
+	 *					or FALSE if no matching file found
+	 */
+	public static function get_config($file, $name = NULL) {
+		// Prevent extra variable collection and return get_config_ext()
+        $extras = FALSE;
+        return self::get_config_ext($file, $name, $extras);
+    }
+
+	/**
+	 * Get config file contents with extra variables
+	 *
+	 * This function searches the package paths for the named config file.
+	 * If $name is defined, it requires the file to contain an array by that name
+	 * and merges the arrays if found in multiple files.
+	 * Otherwise, it just includes each matching file found.
+	 * Any other variables found in each file with names not starting with
+	 * an underscore are added to $_extras as an array element with the variable
+	 * name as a key. For this reason, all local variables start with an underscore.
+	 *
+	 * @param	string	file name
+	 * @param	string	array name
+	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
+	 *					or FALSE if no matching file found
+	 */
+	public static function get_config_ext($_file, $_name = NULL, &$_extras) {
+		// Ensure file starts with a slash and ends with .php
+		$_file = '/'.ltrim($_file, "/\\");
+		if (!preg_match('/\.php$/', $_file)) {
+			$_file .= '.php';
+		}
+
+		// Set relative file paths to search
+		$_files = array();
+		if (defined('ENVIRONMENT')) {
+			// Check ENVIRONMENT for file
+			$_files[] = 'config/'.ENVIRONMENT.$_file;
+		}
+		$_files[] = 'config'.$_file;
+
+		// Merge arrays from all viable config paths
+		$_merged = array();
+		foreach (self::_ci_config_paths as $_path) {
+			// Check each variation
+			foreach ($_files as $_file) {
+				$_file_path = $_path.$_file;
+				if (file_exists($_file_path)) {
+					// Include file
+					include($_file_path);
+
+					// See if we're gathering extra variables
+					if ($_extras !== FALSE) {
+						// Get associative array of extra vars
+						foreach (get_defined_vars() as $_key => $_var) {
+							if (substr($_key, 0, 1) != '_' && $_key != $_name) {
+								$_extras[$_key] = $_var;
+							}
+						}
+					}
+
+					// See if we have an array to check for
+					if (empty($_name)) {
+						// Nope - just note we found something
+						$merged = TRUE;
+						continue;
+					}
+
+					// Check for named array
+					if (!is_array($$_name)) {
+						// Invalid - return bad filename
+						return $_file_path;
+					}
+
+					// Merge config and unset local
+					$_merged = array_replace_recursive($_merged, $$_name);
+					unset($$_name);
+				}
+			}
+		}
+
+		// Test for merged config
+		if (empty($_merged)) {
+			// None - quit
+			return FALSE;
+		}
+
+		// Return merged config
+		return $_merged;
+	}
+
+	/**
+	 * Initialize configuration
+	 *
+	 * This function finishes bootstrapping the CodeIgniter object by loading
+	 * the Config object and installing the primary configuration.
+	 *
+	 * @param	array	config array
+	 * @param	array	autoload array
+	 * @return	void
+	 */
+	protected function _init($config, $autoload) {
+		// Establish configured subclass prefix
+		if (isset($config['subclass_prefix'])) {
+			$this->_ci_subclass_prefix = $config['subclass_prefix'];
+		}
+
+		// Autoload package paths so they can be searched
+		if (isset($autoload['packages'])) {
+			foreach ($autoload['packages'] as $package_path) {
+				$this->add_package_path($package_path);
+			}
+		}
+
+		// Instantiate the config class and initialize
+		$this->_load_core_class('Config');
+		$this->config->_init($config);
+
+		// Load any custom config files
+		if (isset($autoload['config'])) {
+			foreach ($autoload['config'] as $val) {
+				$this->config->load($val);
+			}
+		}
+
+		// Save remaining items for second phase
+		$this->_ci_autoload =& $autoload;
+	}
+
+	/**
 	 * Determine if a class method can actually be called (from outside the class)
 	 *
 	 * @param	mixed	class name or object
@@ -241,111 +379,6 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 
 		// Neither _remap nor method could be called
 		return FALSE;
-	}
-
-	/**
-	 * Initialize configuration
-	 *
-	 * This function finishes bootstrapping the CodeIgniter object by loading
-	 * the Config object and installing the primary configuration.
-	 *
-	 * @param	array	config array
-	 * @param	array	autoload array
-	 * @return	void
-	 */
-	protected function _init($config, $autoload) {
-		// Establish configured subclass prefix
-		if (isset($config['subclass_prefix'])) {
-			$this->_ci_subclass_prefix = $config['subclass_prefix'];
-		}
-
-		// Autoload package paths so they can be searched
-		if (isset($autoload['packages'])) {
-			foreach ($autoload['packages'] as $package_path) {
-				$this->add_package_path($package_path);
-			}
-		}
-
-		// Instantiate the config class and initialize
-		$this->_load_core_class('Config');
-		$this->config->_init($config);
-
-		// Load any custom config files
-		if (isset($autoload['config'])) {
-			foreach ($autoload['config'] as $val) {
-				$this->config->load($val);
-			}
-		}
-
-		// Save remaining items for second phase
-		$this->_ci_autoload =& $autoload;
-	}
-
-	/**
-	 * Get config file contents
-	 *
-	 * This function searches the package paths for the named config file.
-	 * If $name is defined, it requires the file to contain an array by that name.
-	 * Otherwise, it just includes each matching file found.
-	 *
-	 * @param	string	file name
-	 * @param	string	array name
-	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
-	 *					or FALSE if no matching file found
-	 */
-	public static function get_config($file, $name = NULL) {
-		// Ensure file starts with a slash and ends with .php
-		$file = '/'.ltrim($file, "/\\");
-		if (!preg_match('/\.php$/', $file)) {
-			$file .= '.php';
-		}
-
-		// Set relative file paths to search
-		$files = array();
-		if (defined('ENVIRONMENT')) {
-			// Check ENVIRONMENT for file
-			$files[] = 'config/'.ENVIRONMENT.$file;
-		}
-		$files[] = 'config'.$file;
-
-		// Merge arrays from all viable config paths
-		$merged = array();
-		foreach (self::_ci_config_paths as $path) {
-			// Check each variation
-			foreach ($files as $file) {
-				$file_path = $path.$file;
-				if (file_exists($file_path)) {
-					// Include file
-					include($file_path);
-
-					// See if we have an array to check for
-					if (empty($name)) {
-						// Nope - just note we found something
-						$merged = TRUE;
-						continue;
-					}
-
-					// Check for named array
-					if ( ! is_array($$name)) {
-						// Invalid - return bad filename
-						return $file_path;
-					}
-
-					// Merge config and unset local
-					$merged = array_merge($merged, $$name);
-					unset($$name);
-				}
-			}
-		}
-
-		// Test for merged config
-		if (empty($merged)) {
-			// None - quit
-			return FALSE;
-		}
-
-		// Return merged config
-		return $merged;
 	}
 
 	/**
@@ -1268,7 +1301,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		return $path;
 	}
 }
-// END Root class
+// END CodeIgniter class
 
 /**
  * Get instance
@@ -1294,7 +1327,7 @@ function &get_instance() {
  */
 function show_error($message, $status_code = 500, $heading = 'An Error Was Encountered') {
 	// Get instance and call show_error
-	$CI =& get_instance();
+	$CI =& CodeIgniter::instance();
 	$CI->show_error($message, $status_code, $heading);
 }
 
@@ -1310,7 +1343,7 @@ function show_error($message, $status_code = 500, $heading = 'An Error Was Encou
  */
 function log_message($level, $message, $php_error = FALSE) {
 	// Get instance and call log_message
-	$CI =& get_instance();
+	$CI =& CodeIgniter::instance();
 	$CI->log_message($level, $message, $php_error);
 }
 

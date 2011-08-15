@@ -91,7 +91,7 @@ class CI_Router extends CI_RouterBase {
 			// Is the controller in a sub-folder?
 			if (is_dir($path.'controllers/'.$segments[0])) {
 				// Found a sub-folder - is there a controller name?
-				if (isset($segments[1]) {
+				if (isset($segments[1])) {
 					// Yes - get class and method
 					$class = $segments[1];
 					$method = isset($segments[2]) ? $segments[2] : 'index';
@@ -160,7 +160,7 @@ class CI_Router extends CI_RouterBase {
 	 * @return	void
 	 */
 	public function set_directory($dir) {
-		$this->route_stack[self::SEG_SUBDIR] = str_replace(array('/', '.'), '', $dir).'/';
+		$this->route_stack[self::SEG_SUBDIR] = $dir == '' ? '' : str_replace(array('/', '.'), '', $dir).'/';
 	}
 
 	/**
