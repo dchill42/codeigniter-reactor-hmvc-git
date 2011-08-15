@@ -804,21 +804,164 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 	}
 
-	/**
-	 * Call magic method
-	 *
-	 * Calls method of routed controller if not existent in CodeIgniter
-	 *
-	 * @param	string	method name
-	 * @param	array	method arguments
-	 * @return	mixed
-	 */
-	public function __call($name, $arguments) {
-		// Check for routed controller and method
-		if (isset($this->routed) && method_exists($this->routed, $name)) {
-			return call_user_func_array(array($this->routed, $name), $arguments);
+    /**
+     * UNDER DEVELOPMENT!!
+     */
+    // _load_object('core', 'Router', array($this));
+    // _load_object('library', 'Log');
+    // _load_object('model', 'Model', NULL, '', '', 'Foo');
+    // _load_object('controller', 'Controller', NULL, '', $subdir, $class, $path);
+    protected function _load_object($type, $class, array $params = NULL, $obj_name = '', $subdir = '', $subclass = '',
+    $path = '') {
+        // Determine type and directory
+        switch ($type) {
+            case 'core':
+                $dir = $type.'/';
+                break;
+            case 'library':
+                $dir = 'libraries/';
+                break;
+            case 'model':
+            case 'controller':
+                $dir = $type.'s/';
+                break;
+            default:
+                $this->show_error('Invalid object type in load request: '.$type);
+        }
+
+		// Set name default
+		if ($obj_name == '') {
+			$obj_name = strtolower($class);
 		}
-	}
+
+        // Determine if already loaded under this name
+        if ($this->is_loaded($class, $obj_name)) {
+            return;
+        }
+
+        // Determine if name is in use
+        if ($obj_name !== FALSE && isset($this->$obj_name)) {
+			$this->show_error('The '.$type.' name you are loading is the name of a resource that is '.
+				'already being used: '.$obj_name);
+        }
+
+        // Load base class if necessary
+        $lowclass = strtolower($class);
+        $classnm = '';
+		$basename = 'CI_'.$class;
+		if (class_exists($basename)) {
+			// Class exists - set base to be attached
+			$classnm = $basename;
+		}
+		else {
+            // Search for base file
+            $base_paths = array_keys($this->_ci_app_paths);
+            $base_paths[] = BASEPATH;
+            $file = $dir.$subdir.$lowclass.'.php';
+            foreach ($base_paths as $basepath) {
+				// See if file exists
+				if (file_exists($basepath.$file)) {
+					// Include file and set base to be attached
+					include($basepath.$file);
+					$classnm = $basename;
+					break;
+				}
+			}
+		}
+
+        // Load subclass if available and necessary
+		if (!empty($this->_ci_subclass_prefix)) {
+			// See if class is already loaded
+			$extname = $this->_ci_subclass_prefix.$class;
+			if (class_exists($extname)) {
+				// Yes - set extension to be attached
+				$classnm = $extname;
+			}
+			else {
+				// Check app paths for extension
+				$file = $dir.$subdir.$this->_ci_subclass_prefix.$lowclass.'.php';
+				foreach ($this->_ci_app_paths as $apppath => $cascade) {
+					if (file_exists($apppath.$file)) {
+						// Found it - include file and set extension to be attached
+						include($apppath.$file);
+						$classnm = $extname;
+						break;
+					}
+				}
+			}
+		}
+
+        // Check for a classname to load
+        if (empty($classnm)) {
+            $this->show_error('Could not find the '.$class.' class to load');
+        }
+
+        // Load final class if specified and necessary
+        if (!empty($subclass)) {
+			// See if class is already loaded
+            if (class_exists($subclass)) {
+				// Yes - set extension to be attached
+				$classnm = $subclass;
+            }
+			else {
+                // Check for path spec
+				$file = $dir.$subdir.$subclass.'.php';
+                if (empty($path)) {
+				    // Check app paths for extension
+                    foreach ($this->_ci_app_paths as $apppath => $cascade) {
+                        if (file_exists($apppath.$file)) {
+                            // Found it - set path
+                            $path = $apppath;
+                            break;
+                        }
+                    }
+
+                    if (empty($path)) {
+                        $this->show_error('Could not find the '.$subclass.' class to load');
+                    }
+                }
+
+                // Load subclass from path
+                require($path.$file);
+                $classnm = $subclass;
+			}
+        }
+
+        // Quit if not attaching object
+        if ($obj_name === FALSE) {
+            return;
+        }
+
+        // Determine parameters
+        if ($type == 'core') {
+            // Each core class gets a reference to the parent
+            $params = $this;
+        }
+        else if ($type == 'library' && is_null($params)) {
+			// See if there's a config file for the class
+			$config = self::get_config($lowclass.'.php', 'config');
+			if (!is_array($config)) {
+				// Try uppercase
+			    $config = self::get_config(ucfirst($lowclass).'.php', 'config');
+			}
+
+			// Set params to config if found
+			if (is_array($config)) {
+				$params = $config;
+			}
+        }
+
+        // Attach object
+        if (is_null($params)) {
+            $this->$obj_name = new $classnm();
+        }
+        else {
+            $this->$obj_name = new $classnm($params);
+        }
+
+		// Map object name to class
+		$this->_ci_classes[$lowclass][] = $obj_name;
+    }
 
 	/**
 	 * Load library
@@ -1057,9 +1200,9 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 
 		// See if path was provided
 		$class = strtolower($class);
+        $file = $type.'s/'.$subdir.$class.'.php';
 		if (empty($path)) {
 			// Search path list for class
-			$file = $type.'s/'.$subdir.$class.'.php';
 			foreach ($this->_ci_app_paths as $app_path => $view_cascade) {
 				// Check each path for filename
 				if (file_exists($app_path.$file)) {
@@ -1075,7 +1218,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 
 		// Include source
-		require_once($mvc_path.$file);
+		require_once($path.$file);
 
 		// Instantiate class and attach
 		$classnm = ucfirst($class);
