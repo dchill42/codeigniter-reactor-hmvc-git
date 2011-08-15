@@ -86,7 +86,7 @@ class CI_Config {
 		}
 
 		// Get config array and check result
-		$config = $this->get($file.'.php', $file);
+		$config = $this->get($file.'.php', 'config');
 		if ($config === FALSE)
 		{
 			if ($fail_gracefully)
@@ -142,58 +142,92 @@ class CI_Config {
 	 */
 	public function get($file, $name)
 	{
+		$extras = FALSE;
+		return $this->get_ext($file, $name, $extras);
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Get config file contents with extra vars
+	 *
+	 * Reads and merges config arrays from named config files.
+	 * Any standalone variables not starting with an underscore are gathered
+	 * and returned via $_extras. For this reason, all local variables start
+	 * with an underscore.
+	 *
+	 * @param	string	the config file name
+	 * @param	string	the array name to look for
+	 * @param	array	reference to extras array
+	 * @return	mixed	merged config if found, otherwise FALSE
+	 */
+	public function get_ext($_file, $_name, &$_extras)
+	{
 		// Ensure file ends with .php
-		if (!preg_match('/\.php$/', $file))
+		if (!preg_match('/\.php$/', $_file))
 		{
-			$file .= '.php';
+			$_file .= '.php';
 		}
 
 		// Merge arrays from all viable config paths
-		$merged = array();
-		$check_locations = defined('ENVIRONMENT') ? array(ENVIRONMENT.'/'.$file, $file) : array($file);
-		foreach ($this->_config_paths as $path)
+		$_merged = array();
+		$_check_locations = defined('ENVIRONMENT') ? array(ENVIRONMENT.'/'.$_file, $_file) : array($_file);
+		foreach ($this->_config_paths as $_path)
 		{
 			// Check with/without ENVIRONMENT
-			foreach ($check_locations as $location)
+			foreach ($_check_locations as $_location)
 			{
 				// Determine if file exists here
-				$file_path = $path.'config/'.$location;
-				if (file_exists($file_path))
+				$_file_path = $_path.'config/'.$_location;
+				if (file_exists($_file_path))
 				{
 					// Include file
-					include($file_path);
+					include($_file_path);
+
+					// See if we're gathering extra variables
+					if ($_extras !== FALSE)
+					{
+						// Get associative array of public vars
+						foreach (get_defined_vars() as $_key => $_var)
+						{
+							if (substr($_key, 0, 1) != '_' && $_key != $_name)
+							{
+								$_extras[$_key] = $_var;
+							}
+						}
+					}
 
 					// See if we have an array name to check for
-					if (empty($name))
+					if (empty($_name))
 					{
 						// Nope - just note we found something
-						$merged = TRUE;
+						$_merged = TRUE;
 						continue;
 					}
 
 					// Check for config array
-					if ( ! is_array($$name))
+					if ( ! isset($$_name) || ! is_array($$_name))
 					{
 						// Invalid - return bad filename
-						return $file_path;
+						return $_file_path;
 					}
 
 					// Merge config and unset local
-					$merged = array_merge($merged, $$name);
-					unset($$name);
+					$_merged = array_replace_recursive($_merged, $$_name);
+					unset($$_name);
 				}
 			}
 		}
 
 		// Test for merged config
-		if (empty($merged))
+		if (empty($_merged))
 		{
 			// None - quit
 			return FALSE;
 		}
 
 		// Return merged config
-		return $merged;
+		return $_merged;
 	}
 
 	// --------------------------------------------------------------------

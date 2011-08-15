@@ -162,19 +162,19 @@ class CI_Loader {
 	 * @param	boolean	FALSE to skip calling controller method
 	 * @return	boolean TRUE on success, otherwise FALSE
 	 */
-	public function controller($controller, $name = '', $call = TRUE)
+	public function controller($route, $name = '', $call = TRUE)
 	{
 		// Check for missing class
-		if (empty($controller))
+		if (empty($route))
 		{
 			return FALSE;
 		}
 
 		// Get instance and establish segment stack
-		if (is_array($controller))
+		if (is_array($route))
 		{
 			// Assume segments have been pre-parsed by CI_Router::validate_route() - make sure there's 4
-			if (count($controller) < 4)
+			if (count($route) < 4)
 			{
 				return FALSE;
 			}
@@ -182,18 +182,18 @@ class CI_Loader {
 		else
 		{
 			// Call validate_route() to break URI into segments
-			$controller = $this->CI->router->validate_route(explode('/', $controller));
-			if ($controller === FALSE)
+			$route = $this->CI->router->validate_route(explode('/', $route));
+			if ($route === FALSE)
 			{
 				return FALSE;
 			}
 		}
 
 		// Extract segment parts
-		$path = array_shift($controller);
-		$subdir = array_shift($controller);
-		$class = array_shift($controller);
-		$method = array_shift($controller);
+		$path = array_shift($route);
+		$subdir = array_shift($route);
+		$class = array_shift($route);
+		$method = array_shift($route);
 
 		// Set name if not provided
 		if (empty($name))
@@ -214,7 +214,34 @@ class CI_Loader {
 			// Load base class(es) if not already done
 			if ( ! class_exists('CI_Controller'))
 			{
-				load_class('Controller', 'core');
+				// Locate base class
+				foreach ($this->_ci_library_paths as $lib_path)
+				{
+					$file = $lib_path.'core/Controller.php';
+					if (file_exists($file))
+					{
+						// Include class source
+						include($file);
+						break;
+					}
+				}
+
+				// Check for subclass
+				$pre = $this->CI->config->item('subclass_prefix');
+				if (!empty($pre))
+				{
+					// Locate subclass
+					foreach ($this->_ci_mvc_paths as $mvc_path => $cascade)
+					{
+						$file = $mvc_path.'core/'.$pre.'Controller.php';
+						if (file_exists($file))
+						{
+							// Include class source
+							include($file);
+							break;
+						}
+					}
+				}
 			}
 
 			// Include source and instantiate object
@@ -229,7 +256,7 @@ class CI_Loader {
 		// Call method unless disabled
 		if ($call)
 		{
-			return $this->CI->call_controller($class, $method, $segments, $name);
+			return $this->CI->call_controller($class, $method, $route, $name);
 		}
 
 		return TRUE;
@@ -309,7 +336,34 @@ class CI_Loader {
 		// Load base class(es) if not already done
 		if ( ! class_exists('CI_Model'))
 		{
-			load_class('Model', 'core');
+			// Locate base class
+			foreach ($this->_ci_library_paths as $path)
+			{
+				$file = $path.'core/Model.php';
+				if (file_exists($file))
+				{
+					// Include class source
+					include($file);
+					break;
+				}
+			}
+
+			// Check for subclass
+			$pre = $this->CI->config->item('subclass_prefix');
+			if (!empty($pre))
+			{
+				// Locate subclass
+				foreach ($this->_ci_mvc_paths as $path => $cascade)
+				{
+					$file = $path.'core/'.$pre.'Model.php';
+					if (file_exists($file))
+					{
+						// Include class source
+						include($file);
+						break;
+					}
+				}
+			}
 		}
 
 		// Search MVC paths for model
@@ -526,7 +580,7 @@ class CI_Loader {
 		}
 
 		// Prep filename
-		$helper = strtolower(str_replace(array('.php', '_helper'), '', $helpers)).'_helper');
+		$helper = strtolower(str_replace(array('.php', '_helper'), '', $helpers)).'_helper';
 
 		// Check if already loaded
 		if (isset($this->_ci_helpers[$helper]))

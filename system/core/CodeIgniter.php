@@ -35,6 +35,31 @@ class CodeIgniter {
 	 */
 	private function __construct()
 	{
+		// Define a custom error handler so we can log PHP errors
+		set_error_handler('_exception_handler');
+
+		// Kill magic quotes for older versions
+		if ( ! is_php('5.3'))
+		{
+			@set_magic_quotes_runtime(0);
+		}
+
+		// Set a liberal script execution time limit
+		if (function_exists('set_time_limit') == TRUE && @ini_get('safe_mode') == 0)
+		{
+			@set_time_limit(300);
+		}
+
+		log_message('debug', 'CodeIgniter Class Initialized');
+	}
+
+	/**
+	 * Initialize
+	 *
+	 * @return void
+	 */
+	protected function _init()
+	{
 		// Assign all the class objects that were instantiated by the
 		// bootstrap file (CodeIgniter.php) to local class variables
 		// so that CI can run as one big super object.
@@ -44,10 +69,12 @@ class CodeIgniter {
 			$this->$var =& load_class($class);
 		}
 
-		// Get Loader
-		$this->load =& load_class('Loader', 'core');
+		// Get Config and load constants
+		$this->load_core_class('Config');
+		$this->config->get('constants.php', NULL);
 
-		log_message('debug', 'Root Class Initialized');
+		// Load Loader
+		$this->load =& load_class('Loader', 'core');
 	}
 
 	/**
@@ -152,10 +179,19 @@ class CodeIgniter {
 		// Check for existing instance
 		if (is_null(self::$instance))
 		{
-			// Instantiate object as subclass if defined, otherwise as base name
+			// Load the CodeIgniter subclass, if found
+			$class = 'CodeIgniter';
 			$pre = config_item('subclass_prefix');
-			$class = class_exists($pre.'CodeIgniter') ? $pre.'CodeIgniter' : 'CodeIgniter';
+			$file = APPPATH.'core/'.$pre.$class.'.php';
+			if (file_exists($file))
+			{
+				include($file);
+				$class = $pre.$class;
+			}
+
+			// Instantiate object as subclass if defined, otherwise as base name
 			self::$instance = new $class();
+			self::$instance->_init();
 		}
 		return self::$instance;
 	}
@@ -198,32 +234,6 @@ class CodeIgniter {
 
 /*
  * ------------------------------------------------------
- *  Load the framework constants
- * ------------------------------------------------------
- */
-	if (defined('ENVIRONMENT') && file_exists(APPPATH.'config/'.ENVIRONMENT.'/constants.php'))
-	{
-		require(APPPATH.'config/'.ENVIRONMENT.'/constants.php');
-	}
-	else
-	{
-		require(APPPATH.'config/constants.php');
-	}
-
-/*
- * ------------------------------------------------------
- *  Define a custom error handler so we can log PHP errors
- * ------------------------------------------------------
- */
-	set_error_handler('_exception_handler');
-
-	if ( ! is_php('5.3'))
-	{
-		@set_magic_quotes_runtime(0); // Kill magic quotes
-	}
-
-/*
- * ------------------------------------------------------
  *  Set the subclass_prefix
  * ------------------------------------------------------
  *
@@ -245,31 +255,30 @@ class CodeIgniter {
 
 /*
  * ------------------------------------------------------
- *  Set a liberal script execution time limit
+ *  Load the application root
  * ------------------------------------------------------
  */
-	if (function_exists('set_time_limit') == TRUE && @ini_get('safe_mode') == 0)
+	// Instantiate CodeIgniter
+	function &get_instance()
 	{
-		@set_time_limit(300);
+		return CodeIgniter::instance();
 	}
+	$CI =& CodeIgniter::instance();
 
 /*
  * ------------------------------------------------------
  *  Start the timer... tick tock tick tock...
  * ------------------------------------------------------
  */
-	$BM =& load_class('Benchmark', 'core');
-	$BM->mark('total_execution_time_start');
-	$BM->mark('loading_time:_base_classes_start');
+	$CI->load_core_class('Benchmark');
+	$CI->benchmark->mark('total_execution_time_start');
+	$CI->benchmark->mark('loading_time:_base_classes_start');
 
 /*
  * ------------------------------------------------------
- *  Instantiate the config class
+ *	Do we have any manually set config items in the index.php file?
  * ------------------------------------------------------
  */
-	$CI->load_core_class('Config');
-
-	// Do we have any manually set config items in the index.php file?
 	if (isset($assign_to_config))
 	{
 		$CI->config->_assign_to_config($assign_to_config);
@@ -280,33 +289,14 @@ class CodeIgniter {
  *  Instantiate the hooks class
  * ------------------------------------------------------
  */
-	$EXT =& load_class('Hooks', 'core');
+	$CI->load_core_class('Hooks');
 
 /*
  * ------------------------------------------------------
  *  Is there a "pre_system" hook?
  * ------------------------------------------------------
  */
-	$EXT->_call_hook('pre_system');
-
-/*
- * ------------------------------------------------------
- *  Load the application root
- * ------------------------------------------------------
- */
-	// Load the CodeIgniter subclass, if found
-	$file = APPPATH.'core/'.config_item('subclass_prefix').'CodeIgniter.php';
-	if (file_exists($file))
-	{
-		include($file);
-	}
-
-	// Instantiate CodeIgniter
-	function &get_instance()
-	{
-		return CodeIgniter::instance();
-	}
-	$CI =& CodeIgniter::instance();
+	$CI->hooks->_call_hook('pre_system');
 
 /*
  * ------------------------------------------------------
@@ -359,7 +349,7 @@ class CodeIgniter {
  *	Is there a valid cache file?  If so, we're done...
  * ------------------------------------------------------
  */
-	if ($EXT->_call_hook('cache_override') === FALSE && $CI->output->_display_cache($CI->config, $CI->uri) == TRUE)
+	if ($CI->hooks->_call_hook('cache_override') === FALSE && $CI->output->_display_cache($CI->config, $CI->uri) == TRUE)
 	{
 		exit;
 	}
@@ -393,14 +383,14 @@ class CodeIgniter {
 	$CI->load->ci_autoloader();
 
 	// Set a mark point for benchmarking
-	$BM->mark('loading_time:_base_classes_end');
+	$CI->benchmark->mark('loading_time:_base_classes_end');
 
 /*
  * ------------------------------------------------------
  *  Is there a "pre_controller" hook?
  * ------------------------------------------------------
  */
-	$EXT->_call_hook('pre_controller');
+	$CI->hooks->_call_hook('pre_controller');
 
 /*
  * ------------------------------------------------------
@@ -409,12 +399,12 @@ class CodeIgniter {
  */
 	// Get the parsed route and identify class, method, and arguments
 	$route = $CI->router->fetch_route();
-	$args = array_slice(CI_Router::SEG_CLASS);
-	$class = array_unshift($args);
-	$method = array_unshift($args);
+	$args = array_slice($route, CI_Router::SEG_CLASS);
+	$class = array_shift($args);
+	$method = array_shift($args);
 
 	// Mark a start point so we can benchmark the controller
-	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
+	$CI->benchmark->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 
 	// Load the controller, but don't call the method yet
 	if ($CI->load->controller($route, '', FALSE) == FALSE)
@@ -430,7 +420,7 @@ class CodeIgniter {
  *  Is there a "post_controller_constructor" hook?
  * ------------------------------------------------------
  */
-	$EXT->_call_hook('post_controller_constructor');
+	$CI->hooks->_call_hook('post_controller_constructor');
 
 /*
  * ------------------------------------------------------
@@ -444,21 +434,21 @@ class CodeIgniter {
 	}
 
 	// Mark a benchmark end point
-	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_end');
+	$CI->benchmark->mark('controller_execution_time_( '.$class.' / '.$method.' )_end');
 
 /*
  * ------------------------------------------------------
  *  Is there a "post_controller" hook?
  * ------------------------------------------------------
  */
-	$EXT->_call_hook('post_controller');
+	$CI->hooks->_call_hook('post_controller');
 
 /*
  * ------------------------------------------------------
  *  Send the final rendered output to the browser
  * ------------------------------------------------------
  */
-	if ($EXT->_call_hook('display_override') === FALSE)
+	if ($CI->hooks->_call_hook('display_override') === FALSE)
 	{
 		$CI->output->_display();
 	}
@@ -468,7 +458,7 @@ class CodeIgniter {
  *  Is there a "post_system" hook?
  * ------------------------------------------------------
  */
-	$EXT->_call_hook('post_system');
+	$CI->hooks->_call_hook('post_system');
 
 /*
  * ------------------------------------------------------

@@ -167,7 +167,7 @@ class CI_Router {
 		$this->CI->uri->rsegments = array_slice($route, self::SEG_CLASS);
 
 		// Re-index the segment array so that it starts with 1 rather than 0
-		$uri->_reindex_segments();
+		$this->CI->uri->_reindex_segments();
 	}
 
 	// --------------------------------------------------------------------
@@ -217,7 +217,7 @@ class CI_Router {
 			if (is_dir($path.'controllers/'.$segments[0]))
 			{
 				// Found a sub-folder - is there a controller name?
-				if (isset($segments[1])
+				if (isset($segments[1]))
 				{
 					// Yes - get class and method
 					$class = $segments[1];
@@ -381,7 +381,7 @@ class CI_Router {
 	 */
 	public function set_directory($dir)
 	{
-		$this->route_stack[self::SEG_SUBDIR] = str_replace(array('/', '.'), '', $dir).'/';
+		$this->route_stack[self::SEG_SUBDIR] = $dir == '' ? '' : str_replace(array('/', '.'), '', $dir).'/';
 	}
 
 	// --------------------------------------------------------------------

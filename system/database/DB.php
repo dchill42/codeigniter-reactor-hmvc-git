@@ -29,7 +29,7 @@ function &DB($params = '', $active_record_override = NULL)
 	{
 		// Get database config
 		$CI =& CodeIgniter::instance();
-		$db = $CI->config->get('database.php', 'db');
+		$db = $CI->config->get_ext('database.php', 'db', $args);
 		if ($db === FALSE)
 		{
 			show_error('No database config file was found.');
@@ -39,10 +39,7 @@ function &DB($params = '', $active_record_override = NULL)
 			show_error('No database connection settings were found in the database config file.');
 		}
 
-		if ($params != '')
-		{
-			$active_group = $params;
-		}
+		$active_group = ($params == '') ? $args['active_group'] : $params;
 
 		if ( ! isset($active_group) OR ! isset($db[$active_group]))
 		{
@@ -106,10 +103,7 @@ function &DB($params = '', $active_record_override = NULL)
 	// based on whether we're using the active record class or not.
 	// Kudos to Paul for discovering this clever use of eval()
 
-	if ($active_record_override !== NULL)
-	{
-		$active_record = $active_record_override;
-	}
+	$active_record = $active_record_override === NULL ? $args['active_record'] : $active_record_override;
 
 	require_once(BASEPATH.'database/DB_driver.php');
 
