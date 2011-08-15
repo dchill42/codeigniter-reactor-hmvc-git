@@ -38,7 +38,7 @@ class CodeIgniter {
 		// Assign all the class objects that were instantiated by the
 		// bootstrap file (CodeIgniter.php) to local class variables
 		// so that CI can run as one big super object.
-		// Later core loads will be done through load_core() below.
+		// Later core loads will be done through load_core_class() below.
 		foreach (is_loaded() as $var => $class)
 		{
 			$this->$var =& load_class($class);
@@ -58,7 +58,7 @@ class CodeIgniter {
 	 * @param	string	class name
 	 * @return	object
 	 */
-	public function load_core($class)
+	public function load_core_class($class)
 	{
 		// Load class, immediately assign, and return object
 		$name = strtolower($class);
@@ -201,7 +201,7 @@ class CodeIgniter {
  *  Load the framework constants
  * ------------------------------------------------------
  */
-	if (defined('ENVIRONMENT') AND file_exists(APPPATH.'config/'.ENVIRONMENT.'/constants.php'))
+	if (defined('ENVIRONMENT') && file_exists(APPPATH.'config/'.ENVIRONMENT.'/constants.php'))
 	{
 		require(APPPATH.'config/'.ENVIRONMENT.'/constants.php');
 	}
@@ -238,7 +238,7 @@ class CodeIgniter {
  * Note: Since the config file data is cached it doesn't
  * hurt to load it here.
  */
-	if (isset($assign_to_config['subclass_prefix']) AND $assign_to_config['subclass_prefix'] != '')
+	if (isset($assign_to_config['subclass_prefix']) && $assign_to_config['subclass_prefix'] != '')
 	{
 		get_config(array('subclass_prefix' => $assign_to_config['subclass_prefix']));
 	}
@@ -248,7 +248,7 @@ class CodeIgniter {
  *  Set a liberal script execution time limit
  * ------------------------------------------------------
  */
-	if (function_exists('set_time_limit') == TRUE AND @ini_get('safe_mode') == 0)
+	if (function_exists('set_time_limit') == TRUE && @ini_get('safe_mode') == 0)
 	{
 		@set_time_limit(300);
 	}
@@ -261,6 +261,19 @@ class CodeIgniter {
 	$BM =& load_class('Benchmark', 'core');
 	$BM->mark('total_execution_time_start');
 	$BM->mark('loading_time:_base_classes_start');
+
+/*
+ * ------------------------------------------------------
+ *  Instantiate the config class
+ * ------------------------------------------------------
+ */
+	$CI->load_core_class('Config');
+
+	// Do we have any manually set config items in the index.php file?
+	if (isset($assign_to_config))
+	{
+		$CI->config->_assign_to_config($assign_to_config);
+	}
 
 /*
  * ------------------------------------------------------
@@ -293,20 +306,7 @@ class CodeIgniter {
 	{
 		return CodeIgniter::instance();
 	}
-	$CI =& get_instance();
-
-/*
- * ------------------------------------------------------
- *  Instantiate the config class
- * ------------------------------------------------------
- */
-	$CI->load_core('Config');
-
-	// Do we have any manually set config items in the index.php file?
-	if (isset($assign_to_config))
-	{
-		$CI->config->_assign_to_config($assign_to_config);
-	}
+	$CI =& CodeIgniter::instance();
 
 /*
  * ------------------------------------------------------
@@ -319,7 +319,7 @@ class CodeIgniter {
  * after the Config class is instantiated.
  *
  */
-	$CI->load_core('Utf8');
+	$CI->load_core_class('Utf8');
 
 /*
  * ------------------------------------------------------
@@ -331,21 +331,21 @@ class CodeIgniter {
  * call to show_404().
  *
  */
-	$CI->load_core('Output');
+	$CI->load_core_class('Output');
 
 /*
  * ------------------------------------------------------
  *  Instantiate the URI class
  * ------------------------------------------------------
  */
-	$CI->load_core('URI');
+	$CI->load_core_class('URI');
 
 /*
  * ------------------------------------------------------
  *  Instantiate the routing class and set the routing
  * ------------------------------------------------------
  */
-	$CI->load_core('Router');
+	$CI->load_core_class('Router');
 	$CI->router->_set_routing();
 
 	// Set any routing overrides that may exist in the main index file
@@ -359,12 +359,9 @@ class CodeIgniter {
  *	Is there a valid cache file?  If so, we're done...
  * ------------------------------------------------------
  */
-	if ($EXT->_call_hook('cache_override') === FALSE)
+	if ($EXT->_call_hook('cache_override') === FALSE && $CI->output->_display_cache($CI->config, $CI->uri) == TRUE)
 	{
-		if ($CI->output->_display_cache($CI->config, $CI->uri) == TRUE)
-		{
-			exit;
-		}
+		exit;
 	}
 
 /*
@@ -372,21 +369,21 @@ class CodeIgniter {
  * Load the security class for xss and csrf support
  * -----------------------------------------------------
  */
-	$CI->load_core('Security');
+	$CI->load_core_class('Security');
 
 /*
  * ------------------------------------------------------
  *  Load the Input class and sanitize globals
  * ------------------------------------------------------
  */
-	$CI->load_core('Input');
+	$CI->load_core_class('Input');
 
 /*
  * ------------------------------------------------------
  *  Load the Language class
  * ------------------------------------------------------
  */
-	$CI->load_core('Lang');
+	$CI->load_core_class('Lang');
 
 /*
  * ------------------------------------------------------
@@ -410,14 +407,14 @@ class CodeIgniter {
  *  Load the local controller
  * ------------------------------------------------------
  */
-	// Mark a start point so we can benchmark the controller
-	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
-
 	// Get the parsed route and identify class, method, and arguments
 	$route = $CI->router->fetch_route();
 	$args = array_slice(CI_Router::SEG_CLASS);
 	$class = array_unshift($args);
 	$method = array_unshift($args);
+
+	// Mark a start point so we can benchmark the controller
+	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 
 	// Load the controller, but don't call the method yet
 	if ($CI->load->controller($route, '', FALSE) == FALSE)
@@ -478,7 +475,7 @@ class CodeIgniter {
  *  Close the DB connection if one exists
  * ------------------------------------------------------
  */
-	if (class_exists('CI_DB') AND isset($CI->db))
+	if (class_exists('CI_DB') && isset($CI->db))
 	{
 		$CI->db->close();
 	}

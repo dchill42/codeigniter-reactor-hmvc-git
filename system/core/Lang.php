@@ -25,7 +25,6 @@
  * @link		http://codeigniter.com/user_guide/libraries/language.html
  */
 class CI_Lang {
-
 	var $language	= array();
 	var $is_loaded	= array();
 
@@ -82,7 +81,7 @@ class CI_Lang {
 		{
 			$found = FALSE;
 
-			foreach (get_instance()->load->get_package_paths(TRUE) as $package_path)
+			foreach (CodeIgniter::instance()->load->get_package_paths(TRUE) as $package_path)
 			{
 				if (file_exists($package_path.'language/'.$idiom.'/'.$langfile))
 				{
@@ -139,7 +138,6 @@ class CI_Lang {
 
 		return $value;
 	}
-
 }
 // END Language Class
 

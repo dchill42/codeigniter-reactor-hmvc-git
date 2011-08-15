@@ -54,7 +54,7 @@ class CI_Exceptions {
 	public function __construct()
 	{
 		$this->ob_level = ob_get_level();
-		// Note:  Do not log messages from this constructor.
+		// Note: Do not log messages from this constructor.
 	}
 
 	// --------------------------------------------------------------------
@@ -101,7 +101,7 @@ class CI_Exceptions {
 		}
 
 		// Check Router for a 404 override
-		$CI =& get_instance();
+		$CI =& CodeIgniter::instance();
 		if ($CI->router->_override_404() === FALSE)
 		{
 			// Just display the generic 404

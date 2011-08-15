@@ -27,11 +27,11 @@
  * @link		http://codeigniter.com/user_guide/libraries/output.html
  */
 class CI_Output {
-
+    protected $CI;
 	protected $final_output;
 	protected $cache_expiration	= 0;
 	protected $headers			= array();
-	protected $mime_types			= array();
+	protected $mime_types		= array();
 	protected $enable_profiler	= FALSE;
 	protected $_zlib_oc			= FALSE;
 	protected $_profiler_sections = array();
@@ -39,22 +39,19 @@ class CI_Output {
 
 	function __construct()
 	{
+        // Get parent reference
+		$this->CI =& CodeIgniter::instance();
+
 		$this->_zlib_oc = @ini_get('zlib.output_compression');
 
 		// Get mime types for later
-		if (defined('ENVIRONMENT') AND file_exists(APPPATH.'config/'.ENVIRONMENT.'/mimes.php'))
+		$mimes = $this->CI->config->get('mimes.php', 'mimes');
+		if (is_array($mimes))
 		{
-			include APPPATH.'config/'.ENVIRONMENT.'/mimes.php';
-		}
-		else
-		{
-			include APPPATH.'config/mimes.php';
+			$this->mime_types = $mimes;
 		}
 
-
-		$this->mime_types = $mimes;
-
-		log_message('debug', "Output Class Initialized");
+		log_message('debug', 'Output Class Initialized');
 	}
 
 	// --------------------------------------------------------------------
@@ -135,7 +132,6 @@ class CI_Output {
 		// but it will not modify the content-length header to compensate for
 		// the reduction, causing the browser to hang waiting for more data.
 		// We'll just skip content-length in those cases.
-
 		if ($this->_zlib_oc && strncasecmp($header, 'content-length', 14) == 0)
 		{
 			return;
@@ -269,13 +265,6 @@ class CI_Output {
 	 */
 	function _display($output = '')
 	{
-		global $BM;
-
-		// Grab the super object
-		$CI =& get_instance();
-
-		// --------------------------------------------------------------------
-
 		// Set the output data
 		if ($output == '')
 		{
@@ -286,8 +275,8 @@ class CI_Output {
 
 		// Do we need to write a cache file? Only if the controller does not have its
 		// own _output() method and we are not dealing with a cache file, which we
-		// can determine by the existence of the $CI->routed object
-		if ($this->cache_expiration > 0 && isset($CI->routed) && ! method_exists($CI->routed, '_output'))
+		// can determine by the existence of the $this->CI->routed object
+		if ($this->cache_expiration > 0 && isset($this->CI->routed) && ! method_exists($this->CI->routed, '_output'))
 		{
 			$this->_write_cache($output);
 		}
@@ -297,7 +286,7 @@ class CI_Output {
 		// Parse out the elapsed time and memory usage,
 		// then swap the pseudo-variables with the data
 
-		$elapsed = $BM->elapsed_time('total_execution_time_start', 'total_execution_time_end');
+		$elapsed = $this->CI->benchmark->elapsed_time('total_execution_time_start', 'total_execution_time_end');
 
 		if ($this->parse_exec_vars === TRUE)
 		{
@@ -310,7 +299,7 @@ class CI_Output {
 		// --------------------------------------------------------------------
 
 		// Is compression requested?
-		if ($CI->config->item('compress_output') === TRUE && $this->_zlib_oc == FALSE)
+		if ($this->CI->config->item('compress_output') === TRUE && $this->_zlib_oc == FALSE)
 		{
 			if (extension_loaded('zlib'))
 			{
@@ -337,7 +326,7 @@ class CI_Output {
 		// Does the routed controller object exist?
 		// If not we know we are dealing with a cache file so we'll
 		// simply echo out the data and exit.
-		if ( ! isset($CI->routed))
+		if ( ! isset($this->CI->routed))
 		{
 			echo $output;
 			log_message('debug', 'Final output sent to browser');
@@ -351,11 +340,11 @@ class CI_Output {
 		// If so, load the Profile class and run it.
 		if ($this->enable_profiler == TRUE)
 		{
-			$CI->load->library('profiler');
+			$this->CI->load->library('profiler');
 
 			if ( ! empty($this->_profiler_sections))
 			{
-				$CI->profiler->set_sections($this->_profiler_sections);
+				$this->CI->profiler->set_sections($this->_profiler_sections);
 			}
 
 			// If the output data contains closing </body> and </html> tags
@@ -363,26 +352,26 @@ class CI_Output {
 			if (preg_match("|</body>.*?</html>|is", $output))
 			{
 				$output = preg_replace("|</body>.*?</html>|is", '', $output);
-				$output .= $CI->profiler->run();
+				$output .= $this->CI->profiler->run();
 				$output .= '</body></html>';
 			}
 			else
 			{
-				$output .= $CI->profiler->run();
+				$output .= $this->CI->profiler->run();
 			}
 		}
 
 		// --------------------------------------------------------------------
 
 		// Does the controller contain a function named _output()?
-		// If so send the output there.  Otherwise, echo it.
-		if (method_exists($CI->routed, '_output'))
+		// If so send the output there. Otherwise, echo it.
+		if (method_exists($this->CI->routed, '_output'))
 		{
-			$CI->routed->_output($output);
+			$this->CI->routed->_output($output);
 		}
 		else
 		{
-			echo $output;  // Send it to the browser!
+			echo $output;	// Send it to the browser!
 		}
 
 		log_message('debug', 'Final output sent to browser');
@@ -399,8 +388,7 @@ class CI_Output {
 	 */
 	function _write_cache($output)
 	{
-		$CI =& get_instance();
-		$path = $CI->config->item('cache_path');
+		$path = $this->CI->config->item('cache_path');
 
 		$cache_path = ($path == '') ? APPPATH.'cache/' : $path;
 
@@ -410,9 +398,9 @@ class CI_Output {
 			return;
 		}
 
-		$uri =	$CI->config->item('base_url').
-				$CI->config->item('index_page').
-				$CI->uri->uri_string();
+		$uri =	$this->CI->config->item('base_url').
+				$this->CI->config->item('index_page').
+				$this->CI->uri->uri_string();
 
 		$cache_path .= md5($uri);
 
@@ -502,8 +490,6 @@ class CI_Output {
 		log_message('debug', "Cache file is current. Sending it to browser.");
 		return TRUE;
 	}
-
-
 }
 // END Output Class
 

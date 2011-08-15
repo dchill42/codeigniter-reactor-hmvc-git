@@ -27,7 +27,6 @@
  * @link		http://codeigniter.com/user_guide/general/controllers.html
  */
 class CI_Controller {
-
 	protected $CI = NULL;
 
 	/**
@@ -35,7 +34,7 @@ class CI_Controller {
 	 */
 	public function __construct()
 	{
-		$this->CI = $this->get_instance();
+		$this->CI = CodeIgniter::instance();
 		log_message('debug', 'Controller Class Initialized');
 	}
 		
@@ -43,8 +42,8 @@ class CI_Controller {
 	 * Get magic method
 	 *
 	 * Exposes root object members
-	 * @param   string  member name
-	 * @return  mixed
+	 * @param	string	member name
+	 * @return	mixed
 	 */
 	public function __get($key)
 	{
@@ -58,25 +57,25 @@ class CI_Controller {
 	 * Isset magic method
 	 *
 	 * Tests root object member existence
-	 * @param   string  member name
-	 * @return  boolean
+	 * @param	string	member name
+	 * @return	boolean
 	 */
 	public function __isset($key)
 	{
 		return isset($this->CI->$key);
 	}
 
-    /**
-     * Get instance
-     *
-     * Returns reference to root object
-     *
-     * @return object   Root instance
-     */
-	public static function &get_instance()
+	/**
+	 * Get instance
+	 *
+	 * Returns reference to root object
+	 *
+	 * @return object	Root instance
+	 */
+	public static function &instance()
 	{
 		// Return root instance
-		return CodeIgniter::get_instance();
+		return CodeIgniter::instance();
 	}
 }
 // END Controller class

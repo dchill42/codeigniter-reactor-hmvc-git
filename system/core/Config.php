@@ -80,39 +80,52 @@ class CI_Config {
 		$file = str_replace('.php', '', $file);
 
 		// Make sure file isn't already loaded
-		if ( ! in_array($file, $this->is_loaded))
+		if (in_array($file, $this->is_loaded))
 		{
-			// Get config array and check result
-			$config = $this->get($file, $fail_gracefully);
-			if ($config === FALSE)
+			return TRUE;
+		}
+
+		// Get config array and check result
+		$config = $this->get($file.'.php', $file);
+		if ($config === FALSE)
+		{
+			if ($fail_gracefully)
 			{
-				// Must be a graceful failure - just return FALSE
 				return FALSE;
 			}
-
-			// Check for sections
-			if ($use_sections === TRUE)
+			show_error('The configuration file '.$file.'.php does not exist.');
+		}
+		else if (is_string($config))
+		{
+			if ($fail_gracefully)
 			{
-				// Merge or set section
-				if (isset($this->config[$file]))
-				{
-					$this->config[$file] = array_merge($this->config[$file], $config);
-				}
-				else
-				{
-					$this->config[$file] = $config;
-				}
+				return FALSE;
+			}
+			show_error('Your '.$config.' file does not appear to contain a valid configuration array.');
+		}
+
+		// Check for sections
+		if ($use_sections === TRUE)
+		{
+			// Merge or set section
+			if (isset($this->config[$file]))
+			{
+				$this->config[$file] = array_merge($this->config[$file], $config);
 			}
 			else
 			{
-				// Merge config
-				$this->config = array_merge($this->config, $config);
+				$this->config[$file] = $config;
 			}
-
-			// Mark file as loaded
-			$this->is_loaded[] = $file;
+		}
+		else
+		{
+			// Merge config
+			$this->config = array_merge($this->config, $config);
 		}
 
+		// Mark file as loaded
+		$this->is_loaded[] = $file;
+		log_message('debug', 'Config file loaded: '.$file.'.php');
 		return TRUE;
 	}
 
@@ -124,10 +137,10 @@ class CI_Config {
 	 * Reads and merges config arrays from named config files
 	 *
 	 * @param	string	the config file name
-	 * @param	boolean	TRUE if errors should just return FALSE, otherwise an error message is displayed
+	 * @param	string	the array name to look for
 	 * @return	mixed	merged config if found, otherwise FALSE
 	 */
-	public function get($file, $fail_gracefully = FALSE)
+	public function get($file, $name)
 	{
 		// Ensure file ends with .php
 		if (!preg_match('/\.php$/', $file))
@@ -150,23 +163,24 @@ class CI_Config {
 					// Include file
 					include($file_path);
 
-					// Check for config array
-					if ( ! is_array($config))
+					// See if we have an array name to check for
+					if (empty($name))
 					{
-						// Invalid - quit or exit
-						if ($fail_gracefully === TRUE)
-						{
-							return FALSE;
-						}
-						show_error('Your '.$file_path.' file does not appear to contain a valid configuration array.');
+						// Nope - just note we found something
+						$merged = TRUE;
+						continue;
+					}
+
+					// Check for config array
+					if ( ! is_array($$name))
+					{
+						// Invalid - return bad filename
+						return $file_path;
 					}
 
 					// Merge config and unset local
-					$merged = array_merge($merged, $config);
-					unset($config);
-
-					// Log success for this file
-					log_message('debug', 'Config file loaded: '.$file_path);
+					$merged = array_merge($merged, $$name);
+					unset($$name);
 				}
 			}
 		}
@@ -174,12 +188,8 @@ class CI_Config {
 		// Test for merged config
 		if (empty($merged))
 		{
-			// None - quit or exit
-			if ($fail_gracefully === TRUE)
-			{
-				return FALSE;
-			}
-			show_error('The configuration file '.$file_path.' does not exist.');
+			// None - quit
+			return FALSE;
 		}
 
 		// Return merged config

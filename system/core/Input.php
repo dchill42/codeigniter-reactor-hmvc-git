@@ -27,7 +27,6 @@
  * @link		http://codeigniter.com/user_guide/libraries/input.html
  */
 class CI_Input {
-
 	var $ip_address				= FALSE;
 	var $user_agent				= FALSE;
 	var $_allow_get_array		= TRUE;
@@ -36,7 +35,6 @@ class CI_Input {
 	var $_enable_csrf			= FALSE; // Set automatically based on config setting
 
 	protected $headers			= array();
-	
 
 	/**
 	 * Constructor
@@ -53,7 +51,7 @@ class CI_Input {
 		$this->_enable_xss		= (config_item('global_xss_filtering') === TRUE);
 		$this->_enable_csrf		= (config_item('csrf_protection') === TRUE);
 
-		$CI =& get_instance();
+		$CI =& CodeIgniter::instance();
 		$this->security =& $CI->security;
 
 		// Do we need the UTF-8 class?
@@ -200,7 +198,7 @@ class CI_Input {
 	* @param	mixed
 	* @param	string	the value of the cookie
 	* @param	string	the number of seconds until expiration
-	* @param	string	the cookie domain.  Usually:  .yourdomain.com
+	* @param	string	the cookie domain. Usually: .yourdomain.com
 	* @param	string	the cookie path
 	* @param	string	the cookie prefix
 	* @param	bool	true makes the cookie secure
@@ -673,7 +671,6 @@ class CI_Input {
 	{
 		return (bool) defined('STDIN');
 	}
-
 }
 // END Input class
 

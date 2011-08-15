@@ -59,17 +59,8 @@ class CI_Loader {
 		$this->_ci_mvc_paths = array(APPPATH => TRUE);
 
 		// Fetch autoloader array
-		if (defined('ENVIRONMENT') AND file_exists(APPPATH.'config/'.ENVIRONMENT.'/autoload.php'))
-		{
-			include_once(APPPATH.'config/'.ENVIRONMENT.'/autoload.php');
-		}
-		else
-		{
-			include_once(APPPATH.'config/autoload.php');
-		}
-
-		// Check for array
-		if (isset($autoload))
+		$autoload = $this->CI->config->get('autoload.php', 'autoload');
+		if (is_array($autoload))
 		{
 			// Save config for ci_autoload
 			$this->_ci_autoload = $autoload;
@@ -360,7 +351,8 @@ class CI_Loader {
 	public function database($params = '', $return = FALSE, $active_record = NULL)
 	{
 		// Do we even need to load the database class?
-		if (class_exists('CI_DB') AND $return == FALSE AND $active_record == NULL AND isset($this->CI->db) AND is_object($this->CI->db))
+		if (class_exists('CI_DB') && $return == FALSE && $active_record == NULL && isset($this->CI->db) &&
+		is_object($this->CI->db))
 		{
 			return FALSE;
 		}
@@ -396,7 +388,7 @@ class CI_Loader {
 
 		// for backwards compatibility, load dbforge so we can extend dbutils off it
 		// this use is deprecated and strongly discouraged
-		$this->CI->load->dbforge();
+		$this->dbforge();
 
 		$driver = $this->CI->db->dbdriver;
 		require_once(BASEPATH.'database/DB_utility.php');
@@ -1218,18 +1210,18 @@ class CI_Loader {
 		// Autoload controllers
 		if (isset($this->_ci_autoload['controller']))
 		{
-            $controller = $this->_ci_autoload['controller'];
-            if ( ! is_array($controller))
-            {
-                $controller = array($controller);
-            }
+			$controller = $this->_ci_autoload['controller'];
+			if ( ! is_array($controller))
+			{
+				$controller = array($controller);
+			}
 
-            // We have to "manually" feed multiples to controller(), since an array
-            // is treated as a router stack instead of more than one controller
-            foreach ($controller as $uri)
-            {
-			    $this->controller($uri);
-            }
+			// We have to "manually" feed multiples to controller(), since an array
+			// is treated as a router stack instead of more than one controller
+			foreach ($controller as $uri)
+			{
+				$this->controller($uri);
+			}
 		}
 
 		// Autoload models

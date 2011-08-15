@@ -45,7 +45,7 @@ class CI_Router {
 	 */
 	public function __construct()
 	{
-		$this->CI =& get_instance();
+		$this->CI =& CodeIgniter::instance();
 		$this->route_stack = array('', '', '', '');
 		log_message('debug', 'Router Class Initialized');
 	}
@@ -64,17 +64,10 @@ class CI_Router {
 	public function _set_routing()
 	{
 		// Load the routes.php file.
-		if (defined('ENVIRONMENT') AND is_file(APPPATH.'config/'.ENVIRONMENT.'/routes.php'))
-		{
-			include(APPPATH.'config/'.ENVIRONMENT.'/routes.php');
-		}
-		elseif (is_file(APPPATH.'config/routes.php'))
-		{
-			include(APPPATH.'config/routes.php');
-		}
+		$route = $this->CI->config->get('routes.php', 'route');
 
 		// Set routes
-		$this->routes = ( ! isset($route) OR ! is_array($route)) ? array() : $route;
+		$this->routes = is_array($route) ? $route : array();
 		unset($route);
 
 		// Set the default controller so we can display it in the event
@@ -184,13 +177,13 @@ class CI_Router {
 	 *
 	 * This function attempts to determine the path to the controller.
 	 * On success, a complete array of at least 4 segments is returned:
-	 *  array(
-	 *	  0 => $path,	 // Package path where Controller found
-	 *	  1 => $subdir,   // Subdirectory, which may be ''
-	 *	  2 => $class,	// Validated Controller class
-	 *	  3 => $method,   // Method, which may be 'index'
-	 *	  ...			 // Any remaining segments
-	 *  );
+	 *	array(
+	 *		0 => $path,		// Package path where Controller found
+	 *		1 => $subdir,	// Subdirectory, which may be ''
+	 *		2 => $class,	// Validated Controller class
+	 *		3 => $method,	// Method, which may be 'index'
+	 *		...				// Any remaining segments
+	 *	);
 	 *
 	 * @access	public
 	 * @param	array	route segments

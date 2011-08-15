@@ -27,7 +27,6 @@
  * @link		http://codeigniter.com/user_guide/libraries/utf8.html
  */
 class CI_Utf8 {
-
 	/**
 	 * Constructor
 	 *
@@ -36,9 +35,9 @@ class CI_Utf8 {
 	 */
 	function __construct()
 	{
-		log_message('debug', "Utf8 Class Initialized");
+		log_message('debug', 'Utf8 Class Initialized');
 
-		$CI =& get_instance();
+		$CI =& CodeIgniter::instance();
 
 		if (
 			preg_match('/./u', 'é') === 1					// PCRE must support UTF-8
@@ -155,9 +154,6 @@ class CI_Utf8 {
 	{
 		return (preg_match('/[^\x00-\x7F]/S', $str) == 0);
 	}
-
-	// --------------------------------------------------------------------
-
 }
 // End Utf8 Class
 
