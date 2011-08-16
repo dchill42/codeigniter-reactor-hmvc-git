@@ -28,10 +28,6 @@
  */
 class CI_Loader extends CI_LoaderBase {
 	protected $CI			= NULL;
-	protected $libraries	= array();
-	protected $helpers		= array();
-	protected $controllers	= array();
-	protected $models		= array();
 	protected $cached_vars	= array();
 	protected $varmap		= array('unit_test' => 'unit', 'user_agent' => 'agent');
 
@@ -40,8 +36,10 @@ class CI_Loader extends CI_LoaderBase {
 	 *
 	 * Sets default package paths, gets the initial output buffering level,
 	 * and autoloads additional paths and config files
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct($CI) {
+	public function __construct(CodeIgniter $CI) {
 		// Attach parent reference
 		$this->CI =& $CI;
 		$CI->log_message('debug', 'Loader Class Initialized');
@@ -72,10 +70,6 @@ class CI_Loader extends CI_LoaderBase {
 			return;
 		}
 
-		// Get the class name, and trim any leading slashes.
-		// The directory path may be part of the class name with non-leading slashes.
-		$class = str_replace('.php', '', trim($class, '/'));
-
 		// Parse out the filename and path.
 		$subdir = $this->_get_path($class);
 
@@ -84,16 +78,8 @@ class CI_Loader extends CI_LoaderBase {
 			$obj_name = isset($this->varmap[$class]) ? $this->varmap[$class] : strtolower($class);
 		}
 
-		// Check if already loaded
-		if (in_array($obj_name, $this->libraries, TRUE)) {
-			return;
-		}
-
-		// Load class in root
-		$this->CI->_load_library($class, $params, $obj_name);
-
-		// If the call didn't blow up, it must have loaded
-		$this->libraries[] = $obj_name;
+		// Load object in core
+		$this->CI->_load('library', $class, $obj_name, $params, $subdir);
 	}
 
 	/**
@@ -129,33 +115,28 @@ class CI_Loader extends CI_LoaderBase {
 	 * @param	mixed	the name of the helper or an array of names
 	 * @return	void
 	 */
-	public function helper($helpers) {
+	public function helper($helper) {
 		// Check for missing name
-		if (empty($helpers)) {
+		if (empty($helper)) {
 			return FALSE;
 		}
 
 		// Delegate multiples
-		if (is_array($helpers)) {
-			foreach ($helpers as $helper) {
-				$this->helper($helper);
+		if (is_array($helper)) {
+			foreach ($helper as $help) {
+				$this->helper($help);
 			}
 			return;
 		}
 
-		// Prep filename
-		$helper = str_replace(array('.php', '_helper'), '', strtolower($helpers)).'_helper';
-
-		// Check if already loaded
-		if (isset($this->helpers[$helper])) {
-			return;
+		// Parse out the filename and path and make sure _helper suffix is attached
+		$subdir = $this->_get_path($helper);
+		if (substr($helper, -7) != '_helper') {
+			$helper .= '_helper';
 		}
 
-		// Load helper in root
-		$this->CI->_load_helper($helper);
-
-		// If the call didn't blow up, it must have loaded
-		$this->helpers[] = $helper;
+		// Load helper in core
+		$this->CI->_load('helper', $helper, FALSE, NULL, $subdir);
 	}
 
 	/**
@@ -191,7 +172,7 @@ class CI_Loader extends CI_LoaderBase {
 			return FALSE;
 		}
 
-		// Get instance and establish segment stack
+		// Get instance and establish route stack
 		if (is_array($route)) {
 			// Assume segments have been pre-parsed by CI_Router::validate_route() - make sure there's 4
 			if (count($route) < 4) {
@@ -212,21 +193,13 @@ class CI_Loader extends CI_LoaderBase {
 		$class = array_shift($route);
 		$method = array_shift($route);
 
-		// Set name if not provided
-		if (empty($obj_name)) {
-			$obj_name = strtolower($class);
-		}
+		// Load object in core
+		$this->CI->_load('controller', $class, $obj_name, NULL, $subdir, $path);
 
-		// Check if already loaded
-		if (!in_array($obj_name, $this->controllers, TRUE)) {
-			// Load class and mark as loaded
-			$this->CI->_load_user_class($class, $path, $subdir, $obj_name);
-			$this->controllers[] = $name;
-		}
-
-		// Call method unless disabled
+		// Check if call is disabled
 		if ($call) {
-			return $this->CI->call_controller($class, $method, $segments, $name);
+			// Pass any remaining route segments as arguments to the call
+			return $this->CI->call_controller($class, $method, $route, $obj_name);
 		}
 
 		return TRUE;
@@ -243,6 +216,11 @@ class CI_Loader extends CI_LoaderBase {
 	 * @return	void
 	 */
 	public function model($class, $obj_name = '', $db_conn = FALSE) {
+		// Check for missing class
+		if ($class == '') {
+			return;
+		}
+
 		// Delegate multiples
 		if (is_array($class)) {
 			foreach ($class as $babe) {
@@ -251,23 +229,8 @@ class CI_Loader extends CI_LoaderBase {
 			return;
 		}
 
-		// Check for missing class
-		if ($class == '') {
-			return;
-		}
-
 		// Parse out the filename and path.
 		$subdir = $this->_get_path($class);
-
-		// Set name if not provided
-		if ($obj_name == '') {
-			$obj_name = strtolower($class);
-		}
-
-		// Check if already loaded
-		if (in_array($obj_name, $this->models, TRUE)) {
-			return;
-		}
 
 		// Load database if needed
 		if ($db_conn !== FALSE AND ! class_exists('CI_DB')) {
@@ -278,11 +241,8 @@ class CI_Loader extends CI_LoaderBase {
 			$this->database($db_conn, FALSE, TRUE);
 		}
 
-		// Load class in root
-		$this->CI->_load_user_class($class, '', $subdir, $obj_name);
-
-		// If the call didn't blow up, it must have loaded
-		$this->models[] = $obj_name;
+		// Load object in core
+		$this->CI->_load('model', $class, $obj_name, NULL, $subdir);
 	}
 
 	/**
@@ -305,8 +265,8 @@ class CI_Loader extends CI_LoaderBase {
 			$this->vars($vars);
 		}
 
-		// Load file in root context
-		return $this->CI->_load_file($view, TRUE, $return, $this->cached_vars);
+		// Run file in core context
+		return $this->CI->_run_file($view, TRUE, $return, $this->cached_vars);
 	}
 
 	/**
@@ -427,8 +387,8 @@ class CI_Loader extends CI_LoaderBase {
 	 * @return	mixed	output if $return is TRUE, otherwise void
 	 */
 	public function file($path, $return = FALSE) {
-		// Load file in root context
-		return $this->CI->_load_file($path, FALSE, $return);
+		// Run file in core context
+		return $this->CI->_run_file($path, FALSE, $return);
 	}
 
 	/**
@@ -467,32 +427,22 @@ class CI_Loader extends CI_LoaderBase {
 	 * @return	mixed	var value
 	 */
 	public function get_var($key) {
+		// Return cached variable or NULL
 		return isset($this->cached_vars[$key]) ? $this->cached_vars[$key] : NULL;
 	}
 
 	/**
 	 * Add Package Path
 	 *
-	 * Prepends a parent path to the library, mvc, and config path arrays
+	 * Prepends a package path to the library, mvc, and config path arrays
 	 *
 	 * @param	string	path
 	 * @param 	boolean view cascade flag
 	 * @return	void
 	 */
 	public function add_package_path($path, $view_cascade = TRUE) {
+		// Pass arguments to core method
 		$this->CI->add_package_path($path, $view_cascade);
-	}
-
-	/**
-	 * Get Package Paths
-	 *
-	 * Return a list of all package paths, by default it will ignore BASEPATH.
-	 *
-	 * @param	boolean include base path flag
-	 * @return	void
-	 */
-	public function get_package_paths($include_base = FALSE) {
-		return $this->CI->get_package_paths($include_base);
 	}
 
 	/**
@@ -506,7 +456,21 @@ class CI_Loader extends CI_LoaderBase {
 	 * @return	void
 	 */
 	public function remove_package_path($path = '', $remove_config_path = TRUE) {
+		// Pass arguments to core method
 		$this->CI->remove_packate_path($path, $remove_config_path);
+	}
+
+	/**
+	 * Get Package Paths
+	 *
+	 * Return a list of all package paths, by default it will ignore BASEPATH.
+	 *
+	 * @param	boolean include base path flag
+	 * @return	void
+	 */
+	public function get_package_paths($include_base = FALSE) {
+		// Pass arguments to core method
+		return $this->CI->get_package_paths($include_base);
 	}
 
 	/**
@@ -548,7 +512,7 @@ class CI_Loader extends CI_LoaderBase {
 
 		// Autoload controllers and models
 		foreach (array('helper', 'controller', 'model') as $type) {
-			if (isset($autoload[$type]) && count($autoload[$type]) > 0) {
+			if (isset($autoload[$type])) {
 				// Force item to array
 				$items = is_array($autoload[$type]) ? $autoload[$type] : array($autoload[$type]);
 				foreach ($items as $item) {
@@ -567,11 +531,11 @@ class CI_Loader extends CI_LoaderBase {
 	 * @return	string	path name
 	 */
 	protected function _get_path(&$file) {
-		// Get any leading dirname
-		$path = dirname($file);
+		// Get any leading dirname without a leading slash
+		$path = dirname(ltrim($file, '/'));
 
 		// Strip filename to basename
-		$file = basename($file);
+		$file = basename($file, '.php');
 
 		// Return leading dirname, if any
 		return ($path == '.') ? '' : $path.'/';

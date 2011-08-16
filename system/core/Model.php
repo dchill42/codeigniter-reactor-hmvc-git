@@ -30,7 +30,7 @@ class CI_Model {
 	 */
 	public function __construct() {
 		// Get instance and log init
-		$this->CI =& CodeIgniter::get_instance();
+		$this->CI =& CodeIgniter::instance();
 		$this->CI->log_message('debug', 'Model Class Initialized');
 	}
 

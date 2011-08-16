@@ -38,8 +38,10 @@ class CI_URI extends CI_RouterBase {
 	 *
 	 * Simply globalizes the Router object. The front loads the Router class early
 	 * on so it's not available normally as other classes are.
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct($CI) {
+	public function __construct(CodeIgniter $CI) {
 		$this->CI =& $CI;
 		$CI->log_message('debug', 'URI Class Initialized');
 	}

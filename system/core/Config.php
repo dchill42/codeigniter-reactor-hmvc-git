@@ -38,23 +38,12 @@ class CI_Config {
 	 * objects when Config is loaded.
 	 *
 	 * @param	object	parent reference
+	 * @param	array	configuration
 	 */
-	public function __construct($CI) {
+	public function __construct(CodeIgniter $CI, array $config) {
 		// Attach parent reference
 		$this->CI =& $CI;
-	}
 
-	/**
-	 * Initialize configuration
-	 *
-	 * This function is called by CodeIgniter immediately after instantiation to
-	 * set the primary configuration.
-	 *
-	 * @access	private
-	 * @param	array	configuration
-	 * @return	void
-	 */
-	public function _init(array $config) {
 		// Initialize config array
 		$this->config =& $config;
 

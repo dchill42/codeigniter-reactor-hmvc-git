@@ -38,8 +38,10 @@ class CI_Input {
 	 * Constructor
 	 *
 	 * Sets whether to globally enable the XSS processing and whether to allow the $_GET array
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct($CI) {
+	public function __construct(CodeIgniter $CI) {
 		// Attach parent reference
 		$this->CI =& $CI;
 

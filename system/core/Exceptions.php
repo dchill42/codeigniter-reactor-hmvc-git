@@ -47,10 +47,16 @@ class CI_Exceptions {
 
 	/**
 	 * Constructor
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct($CI) {
+	public function __construct(CodeIgniter $CI) {
+		// Attach parent reference
         $this->CI =& $CI;
+
+		// Set output buffer level
 		$this->ob_level = ob_get_level();
+
 		// Note: Do not log messages from this constructor.
 	}
 
@@ -91,34 +97,8 @@ class CI_Exceptions {
 			$this->CI->log_message('error', '404 Page Not Found --> '.$page);
 		}
 
-		// Check Router for a 404 override
-		$route = $this->CI->router->get_404_overide();
-		if ($route !== FALSE) {
-			// Insert or append page name argument
-			if (count($route) > CI_Router::SEG_ARGS) {
-				// Insert $page after path, subdir, class, and method and before other args
-				$route = array_merge(
-					array_slice($route, 0, CI_Router::SEG_ARGS),
-					array($page),
-					array_slice($route, CI_Router::SEG_ARGS)
-				);
-			}
-			else {
-				// Just append $page to the end
-				$route[] = $page;
-			}
-
-			// Load the 404 Controller and call the method
-			if ($this->CI->load->controller($route)) {
-				// Display the output and exit
-				$this->CI->output->_display();
-				exit;
-			}
-		}
-
-		// If the override didn't exit above, just display the generic 404
-		echo $this->show_error('404 Page Not Found', 'The page you requested was not found.', 'error_404', 404);
-		exit;
+		// Call show_error for the 404 - it will exit
+		$this->show_error('404 Page Not Found', 'The page you requested was not found.', 'error_404', 404);
 	}
 
 	/**
@@ -134,18 +114,46 @@ class CI_Exceptions {
 	 * @return	string
 	 */
 	public function show_error($heading, $message, $template = 'error_general', $status_code = 500) {
+		// Set status header
 		$this->CI->output->set_status_header($status_code);
 
-		$message = '<p>'.implode('</p><p>', (is_array($message)) ? $message : array($message)).'</p>';
-
+		// Clear any output buffering
 		if (ob_get_level() > $this->ob_level + 1) {
 			ob_end_flush();
 		}
+
+		// Check Router for an error (or 404) override
+		$route = $this->CI->router->get_error_route($status_code == 404);
+		if ($route !== FALSE) {
+			// Insert or append arguments
+			if (count($route) > CI_Router::SEG_ARGS) {
+				// Insert heading and message after path, subdir, class, and method and before other args
+				$route = array_merge(
+					array_slice($route, 0, CI_Router::SEG_ARGS),
+					array($heading, $message),
+					array_slice($route, CI_Router::SEG_ARGS)
+				);
+			}
+			else {
+				// Just append heading and message to the end
+				$route[] = $heading;
+				$route[] = $message;
+			}
+
+			// Load the error Controller and call the method
+			if ($this->CI->load->controller($route)) {
+				// Display the output and exit
+				$this->CI->output->_display();
+				exit;
+			}
+		}
+
+		// If the override didn't exit above, just display the generic error template
 		ob_start();
+		$message = '<p>'.implode('</p><p>', (is_array($message)) ? $message : array($message)).'</p>';
 		include(APPPATH.'errors/'.$template.'.php');
-		$buffer = ob_get_contents();
-		ob_end_clean();
-		return $buffer;
+		echo ob_get_clean();
+		exit;
 	}
 
 	/**

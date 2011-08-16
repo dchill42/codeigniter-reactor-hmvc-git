@@ -29,6 +29,16 @@ class CI_Benchmark {
 	var $marker = array();
 
 	/**
+	 * Constructor
+	 *
+	 * @param	object	parent reference
+	 */
+	public function __construct(CodeIgniter $CI) {
+		// Nothing to do here, really
+		// Note: Do not log messages from this constructor.
+	}
+
+	/**
 	 * Set a benchmark marker
 	 *
 	 * Multiple calls to this function can be made so that several

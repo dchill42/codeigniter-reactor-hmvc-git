@@ -16,7 +16,7 @@
 /**
  * CodeIgniter Application Controller Class
  *
- * This class object is the base class that connects each controller to the root object
+ * This class object is the base class that connects each controller to the core object
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
@@ -38,7 +38,7 @@ class CI_Controller {
 	/**
 	 * Get magic method
 	 *
-	 * Exposes root object members
+	 * Exposes core object members
 	 *
 	 * @param	string	member name
 	 * @return	mixed
@@ -52,7 +52,7 @@ class CI_Controller {
 	/**
 	 * Isset magic method
 	 *
-	 * Tests root object member existence
+	 * Tests core object member existence
 	 *
 	 * @param   string  member name
 	 * @return  boolean
@@ -64,12 +64,12 @@ class CI_Controller {
 	/**
 	 * Get instance
 	 *
-	 * Returns reference to root object
+	 * Returns reference to core object
 	 *
-	 * @return object	Root instance
+	 * @return object	Core instance
 	 */
-	public static function &get_instance() {
-		// Return root instance
+	public static function &instance() {
+		// Return core instance
 		return CodeIgniter::instance();
 	}
 }

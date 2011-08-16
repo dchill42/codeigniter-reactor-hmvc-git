@@ -25,23 +25,18 @@
  * @link		http://codeigniter.com/user_guide/libraries/encryption.html
  */
 class CI_Hooks {
-	protected $CI = NULL;
 	protected $hooks = array();
 	protected $in_progress = FALSE;
 
 	/**
 	 * Constructor
+	 *
+	 * @param	object	parent reference
+	 * @param	array	hooks config
 	 */
-	public function __construct($CI) {
-		$this->CI =& $CI;
-
-		// Grab the "hooks" definition file.
-		$hook = CodeIgniter::get_config('hooks.php', 'hook');
-		if (is_array($hook)) {
-			$this->hooks = $hook;
-		}
-
-		$CI->log_message('debug', 'Hooks Class Initialized');
+	public function __construct(CodeIgniter $CI, array $hooks) {
+		$this->hooks = $hooks;
+		// Note: Do not log messages from this constructor.
 	}
 
 	/**
@@ -91,7 +86,7 @@ class CI_Hooks {
 		}
 
 		// Set file path
-		if (isset($data['filepath']) || !isset($data['filename'])) {
+		if (!isset($data['filepath']) || !isset($data['filename'])) {
 			return FALSE;
 		}
 		$filepath = APPPATH.$data['filepath'].'/'.$data['filename'];

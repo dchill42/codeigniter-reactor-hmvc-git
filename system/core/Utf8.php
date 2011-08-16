@@ -31,8 +31,10 @@ class CI_Utf8 {
 	 * Constructor
 	 *
 	 * Determines if UTF-8 support is to be enabled
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct($CI) {
+	public function __construct(CodeIgniter $CI) {
 		// Attach parent reference
 		$this->CI =& $CI;
 

@@ -20,7 +20,7 @@ define('CI_CORE', FALSE);
 /**
  * CodeIgniter Loader Base Class
  *
- * This class declares the protected loader methods of the application root, below.
+ * This class declares the protected loader methods of the application core, below.
  * By deriving both the CodeIgniter class and the Loader class from this common
  * parent, both can access these protected methods. This allows the core loading
  * mechanisms to live in CodeIgniter, where these methods are overloaded with their
@@ -34,10 +34,10 @@ define('CI_CORE', FALSE);
  * @author		Darren Hill <dchill42@gmail.com>, St. Petersburg College
  */
 class CI_LoaderBase {
-	protected function _load_library($class, $params, $object_name) { }
-	protected function _load_helper($file) { }
-	protected function _load_user_class($class, $model, $subdir, $name) { }
-	protected function _load_file($_ci_path, $_ci_view, $_ci_return, array $_ci_vars) { }
+	// CodeIgniter methods
+	protected function _load($type, $class, $obj_name = '', array $params = NULL, $subdir = '', $path = '') { }
+	protected function _run_file($_ci_path, $_ci_view, $_ci_return, array $_ci_vars) { }
+	// Loader method
 	protected function _autoloader($autoload) { }
 }
 
@@ -53,15 +53,17 @@ class CI_LoaderBase {
  * @author		Darren Hill <dchill42@gmail.com>, St. Petersburg College
  */
 class CI_RouterBase {
-	protected function _set_routing() { }
+	// URI methods
 	protected function _fetch_uri_string() { }
 	protected function _filter_uri($str) { }
 	protected function _set_rsegments(array $rsegments) { }
 	protected function _reindex_segments() { }
+	// Router method
+	protected function _set_routing() { }
 }
 
 /**
- * CodeIgniter Application Root Class
+ * CodeIgniter Application Core Class
  *
  * This class object is the super class that every library in
  * CodeIgniter will be assigned to.
@@ -73,12 +75,11 @@ class CI_RouterBase {
  * @link		http://codeigniter.com/user_guide/general/controllers.html
  */
 class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
-	private static $_ci_instance		= NULL;
+	protected static $_ci_instance		= NULL;
 	protected static $_ci_config_paths	= array(APPPATH);
 	protected $_ci_app_paths			= array(APPPATH => TRUE);
-	protected $_ci_base_paths			= array(APPPATH, BASEPATH);
+	protected $_ci_loaded				= array();
 	protected $_ci_subclass_prefix		= '';
-	protected $_ci_classes				= array();
 	protected $_ci_ob_level				= 0;
 
 	/**
@@ -97,7 +98,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 
 		// Set a liberal script execution time limit
-		if (function_exists('set_time_limit') == TRUE AND @ini_get('safe_mode') == 0) {
+		if (function_exists('set_time_limit') == TRUE && @ini_get('safe_mode') == 0) {
 			@set_time_limit(300);
 		}
 
@@ -130,7 +131,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * Returns singleton instance of CodeIgniter object
 	 * THERE CAN BE ONLY ONE!! (Mu-ha-ha-ha-haaaaa!!)
 	 *
-	 * @param	array	$assign_to_config	from index.php
+	 * @param	array	$assign_to_config from index.php
 	 * @return	object
 	 */
 	public static function &instance($assign_to_config = NULL) {
@@ -194,106 +195,6 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	}
 
 	/**
-	 * Get config file contents
-	 *
-	 * This function searches the package paths for the named config file.
-	 * If $name is defined, it requires the file to contain an array by that name
-	 * and merges the arrays if found in multiple files.
-	 * Otherwise, it just includes each matching file found.
-	 *
-	 * @param	string	file name
-	 * @param	string	array name
-	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
-	 *					or FALSE if no matching file found
-	 */
-	public static function get_config($file, $name = NULL) {
-		// Prevent extra variable collection and return get_config_ext()
-        $extras = FALSE;
-        return self::get_config_ext($file, $name, $extras);
-    }
-
-	/**
-	 * Get config file contents with extra variables
-	 *
-	 * This function searches the package paths for the named config file.
-	 * If $name is defined, it requires the file to contain an array by that name
-	 * and merges the arrays if found in multiple files.
-	 * Otherwise, it just includes each matching file found.
-	 * Any other variables found in each file with names not starting with
-	 * an underscore are added to $_extras as an array element with the variable
-	 * name as a key. For this reason, all local variables start with an underscore.
-	 *
-	 * @param	string	file name
-	 * @param	string	array name
-	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
-	 *					or FALSE if no matching file found
-	 */
-	public static function get_config_ext($_file, $_name = NULL, &$_extras) {
-		// Ensure file starts with a slash and ends with .php
-		$_file = '/'.ltrim($_file, "/\\");
-		if (!preg_match('/\.php$/', $_file)) {
-			$_file .= '.php';
-		}
-
-		// Set relative file paths to search
-		$_files = array();
-		if (defined('ENVIRONMENT')) {
-			// Check ENVIRONMENT for file
-			$_files[] = 'config/'.ENVIRONMENT.$_file;
-		}
-		$_files[] = 'config'.$_file;
-
-		// Merge arrays from all viable config paths
-		$_merged = array();
-		foreach (self::_ci_config_paths as $_path) {
-			// Check each variation
-			foreach ($_files as $_file) {
-				$_file_path = $_path.$_file;
-				if (file_exists($_file_path)) {
-					// Include file
-					include($_file_path);
-
-					// See if we're gathering extra variables
-					if ($_extras !== FALSE) {
-						// Get associative array of extra vars
-						foreach (get_defined_vars() as $_key => $_var) {
-							if (substr($_key, 0, 1) != '_' && $_key != $_name) {
-								$_extras[$_key] = $_var;
-							}
-						}
-					}
-
-					// See if we have an array to check for
-					if (empty($_name)) {
-						// Nope - just note we found something
-						$merged = TRUE;
-						continue;
-					}
-
-					// Check for named array
-					if (!is_array($$_name)) {
-						// Invalid - return bad filename
-						return $_file_path;
-					}
-
-					// Merge config and unset local
-					$_merged = array_replace_recursive($_merged, $$_name);
-					unset($$_name);
-				}
-			}
-		}
-
-		// Test for merged config
-		if (empty($_merged)) {
-			// None - quit
-			return FALSE;
-		}
-
-		// Return merged config
-		return $_merged;
-	}
-
-	/**
 	 * Initialize configuration
 	 *
 	 * This function finishes bootstrapping the CodeIgniter object by loading
@@ -317,8 +218,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 
 		// Instantiate the config class and initialize
-		$this->_load_core_class('Config');
-		$this->config->_init($config);
+		$this->_load('core', 'Config', '', $config);
 
 		// Load any custom config files
 		if (isset($autoload['config'])) {
@@ -327,58 +227,8 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			}
 		}
 
-		// Save remaining items for second phase
+		// Save remaining items for run()
 		$this->_ci_autoload =& $autoload;
-	}
-
-	/**
-	 * Determine if a class method can actually be called (from outside the class)
-	 *
-	 * @param	mixed	class name or object
-	 * @param	string	method
-	 * @return	boolean	TRUE if publicly callable, otherwise FALSE
-	 */
-	public function is_callable($class, $method) {
-		// Just return whether the case-insensitive method is in the public methods
-		return in_array(strtolower($method), array_map('strtolower', get_class_methods($class)));
-	}
-
-	/**
-	 * Call a controller method
-	 *
-	 * Requires that controller already be loaded, validates method name, and calls
-	 * _remap if available.
-	 *
-	 * @param	string	class name
-	 * @param	string	method
-	 * @param	array	arguments
-	 * @param	string	optional object name
-	 * @return	boolean	TRUE on success, otherwise FALSE
-	 */
-	public function call_controller($class, $method, array $args = array(), $name = '') {
-		// Default name if not provided
-		if (empty($name)) {
-			$name = strtolower($class);
-		}
-
-		// Class must be loaded, and method cannot start with underscore, nor be a member of the base class
-		if (isset($this->$name) && strncmp($method, '_', 1) != 0 &&
-		in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller'))) == FALSE) {
-			// Check for _remap
-			if ($this->is_callable($class, '_remap')) {
-				// Call _remap
-				call_user_func_array(array(&$this->$name, '_remap'), array($method, $args));
-				return TRUE;
-			}
-			else if ($this->is_callable($class, $method)) {
-				// Call method
-				call_user_func_array(array(&$this->$name, $method), $args);
-				return TRUE;
-			}
-		}
-
-		// Neither _remap nor method could be called
-		return FALSE;
 	}
 
 	/**
@@ -388,42 +238,56 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * @return	void
 	 */
 	public function run($routing) {
-		// Load benchmark if enabled
+		// Check if Benchmark is enabled
 		if ($this->config->item('enable_benchmarks')) {
-			$this->_load_core_class('Benchmark');
+			// Load Benchmark
+			$this->_load('core', 'Benchmark');
 
 			// Start the timer... tick tock tick tock...
 			$this->benchmark->mark('total_execution_time_start');
 			$this->benchmark->mark('loading_time:_base_classes_start');
 		}
 
-		// Load hooks if enabled
+		// Check if Hooks is enabled and needed
 		if ($this->config->item('enable_hooks')) {
-			$this->_load_core_class('Hooks');
+			// Grab the "hooks" definition file.
+			$hooks = self::get_config('hooks.php', 'hook');
+			if (is_array($hooks) && count($hooks) > 0) {
+				// Load hooks
+				$this->_load('core', 'Hooks', '', $hooks);
 
-			// Call pre_system hook
-			$this->hooks->_call_hook('pre_system');
+				// Call pre_system hook
+				$this->hooks->_call_hook('pre_system');
+			}
 		}
 
-		// Load Output
-		$this->_load_core_class('Output');
-
-		// Load URI and Router, which depends on URI
-		$this->_load_core_class('URI');
-		$this->_load_core_class('Router');
+		// Load Loader, Output, URI, and Router
+		// Order is important here because Router, which directly depends on URI,
+		// may throw an error, which will require Output to display, during which
+		// process Output may need Loader to load Profiler
+		$this->_load('core', 'Loader', 'load');
+		$this->_load('core', 'Output');			// Output depends on Loader
+		$this->_load('core', 'URI');
+		$this->_load('core', 'Router');			// Router depends on URI and Output
 
 		// Set routing with any overrides from index.php
 		$this->router->_set_routing($routing);
 
 		// Check for cache override or failed cache display
+		// If not overridden, and a valid cache exists, we're done
 		if ((isset($this->hooks) && $this->hooks->_call_hook('cache_override') === TRUE) ||
 		$this->output->_display_cache() == FALSE) {
 			// Load remaining core classes
-			$this->_load_core_class('Security');
-			$this->_load_core_class('Utf8');
-			$this->_load_core_class('Input');			// Input depends on Security and UTF-8
-			$this->_load_core_class('Lang');
-			$this->_load_core_class('Loader', 'load');	// Loader depends on Lang
+			$this->_load('core', 'Security');
+			$this->_load('core', 'Utf8');
+			$this->_load('core', 'Input');			// Input depends on Security and UTF-8
+			$this->_load('core', 'Lang');
+
+			// Autoload any remaining resources
+			if (isset($this->_ci_autoload)) {
+				$this->load->_autoloader($this->_ci_autoload);
+				unset($this->_ci_autoload);
+			}
 
 			if (isset($this->benchmark)) {
 				$this->benchmark->mark('loading_time:_base_classes_end');
@@ -440,34 +304,25 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * @return	void
 	 */
 	protected function run_controller() {
-		// Autoload any remaining resources
-		if (isset($this->_ci_autoload)) {
-			$this->load->_autoloader($this->_ci_autoload);
-			unset($this->_ci_autoload);
-		}
-
 		// Call the "pre_controller" hook
 		if (isset($this->hooks)) {
 			$this->hooks->_call_hook('pre_controller');
 		}
 
-		// Get the parsed route and identify class, method, and arguments
+		// Get the parsed route and extract segments
 		$route = $this->router->fetch_route();
-		$args = array_slice(CI_Router::SEG_CLASS);
-		$class = array_unshift($args);
-		$method = array_unshift($args);
+		$path = array_shift($route);
+		$subdir = array_shift($route);
+		$class = array_shift($route);
+		$method = array_shift($route);
 
 		// Mark a start point so we can benchmark the controller
 		if (isset($this->benchmark)) {
 			$this->benchmark->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 		}
 
-		// Load the controller, but don't call the method yet
-		if ($this->load->controller($route, '', FALSE) == FALSE) {
-			$this->show_404($class.'/'.$method);
-		}
-
-		// Set special "routed" reference to routed Controller
+		// Load the controller object and set special "routed" reference
+		$this->_load('controller', $class, '', NULL, $subdir, $path);
 		$this->routed =& $this->$class;
 
 		// Call the "post_controller_constructor" hook
@@ -475,8 +330,8 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			$this->hooks->_call_hook('post_controller_constructor');
 		}
 
-		// Call the requested method
-		if ($this->call_controller($class, $method, $args) == FALSE) {
+		// Call the requested method with remaining route segments as arguments
+		if ($this->call_controller($class, $method, $route) == FALSE) {
 			// Both _remap and $method failed - go to 404
 			$this->show_404($class.'/'.$method);
 		}
@@ -506,113 +361,74 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	}
 
 	/**
+	 * Call a controller method
+	 *
+	 * Requires that controller already be loaded, validates method name, and calls
+	 * _remap if available.
+	 *
+	 * @param	string	class name
+	 * @param	string	method
+	 * @param	array	arguments
+	 * @param	string	optional object name
+	 * @return	boolean	TRUE on success, otherwise FALSE
+	 */
+	public function call_controller($class, $method, array $args = array(), $obj_name = '') {
+		// Default name if not provided
+		if (empty($obj_name)) {
+			$obj_name = strtolower($class);
+		}
+
+		// Class must be loaded, and method cannot start with underscore, nor be a member of the base class
+		if (isset($this->$obj_name) && strncmp($method, '_', 1) != 0 &&
+		!in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))) {
+			// Check for _remap
+			if ($this->is_callable($this->$obj_name, '_remap')) {
+				// Call _remap
+				$this->$obj_name->_remap($method, $args);
+				return TRUE;
+			}
+			else if ($this->is_callable($this->$obj_name, $method)) {
+				// Call method
+				call_user_func_array(array(&$this->$obj_name, $method), $args);
+				return TRUE;
+			}
+		}
+
+		// Neither _remap nor method could be called
+		return FALSE;
+	}
+
+	/**
 	 * Is Loaded
 	 *
-	 * A utility function to test if a class is in the self::$_ci_classes array.
+	 * A utility function to test if a class is in the _ci_loaded array.
 	 * This function returns the object name if the class tested for is loaded,
 	 * and returns FALSE if it isn't.
 	 *
 	 * @param	string	class being checked for
 	 * @param	string	optional object name to check
-	 * @return	mixed	class object name or FALSE
+	 * @return	mixed	TRUE or class object name on success, otherwise FALSE
 	 */
 	public function is_loaded($class, $obj_name = '') {
 		// Lowercase class
 		$class = strtolower($class);
 
 		// See if class is loaded
-		if (isset($this->_ci_classes[$class])) {
+		if (isset($this->_ci_loaded[$class])) {
 			// Yes - are we checking a specific object name?
-			if ($obj_name != '') {
-				// Return whether that name was used
-				return in_array($obj_name, $this->_ci_classes[$class]);
+			if (empty($obj_name)) {
+				// Return the first name loaded
+				// If not attached, this will just return TRUE
+				return reset($this->_ci_loaded[$class]);
 			}
-
-			// Return the first object name loaded
-			return reset($this->_ci_classes[$class]);
+			else {
+				// Return whether that name was used for this class
+				return in_array($obj_name, $this->_ci_loaded[$class]);
+			}
 		}
 				
 		// Never loaded
 		return FALSE;
-	}
-
-	/**
-	 * Add Package Path
-	 *
-	 * Prepends a parent path to the base, app, and config path arrays
-	 *
-	 * @param	string	path
-	 * @param	boolean	view	cascade flag
-	 * @return	void
-	 */
-	public function add_package_path($path, $view_cascade = TRUE) {
-		// Resolve path
-		$path = $this->_resolve_path($path);
-
-		// Prepend config and library/helper file paths
-		array_unshift(self::_ci_config_paths, $path);
-		array_unshift($this->_ci_base_paths, $path);
-
-		// Prepend MVC path with view cascade param
-		$this->_ci_app_paths = array($path => $view_cascade) + $this->_ci_app_paths;
-	}
-
-	/**
-	 * Remove Package Path
-	 *
-	 * Remove a path from the base, app, and config path arrays if it exists
-	 * If no path is provided, the most recently added path is removed.
-	 *
-	 * @param	string	path
-	 * @param	boolean	remove	from config path flag
-	 * @return	void
-	 */
-	public function remove_package_path($path = '', $remove_config_path = TRUE) {
-		if ($path == '') {
-			// Shift last added path from each list
-			if ($remove_config_path) {
-				array_shift(self::_ci_config_paths);
-			}
-			array_shift($this->_ci_base_paths);
-			array_shift($this->_ci_app_paths);
-			return;
-		}
-
-		// Resolve path
-		$path = $this->_resolve_path($path);
-
-		// Prevent app path removal - it is a default for all lists
-		if ($path == APPPATH) {
-			return;
-		}
-
-		// Unset path from config list
-		if ($remove_config_path && ($key = array_search($path, self::_ci_config_paths)) !== FALSE) {
-			unset(self::_ci_config_paths[$key]);
-		}
-
-		// Unset from library/helper list unless base path
-		if ($path != BASEPATH && ($key = array_search($path, $this->_ci_base_paths)) !== FALSE) {
-			unset($this->_ci_base_paths[$key]);
-		}
-
-		// Unset path from MVC list
-		if (isset($this->_ci_app_paths[$path])) {
-			unset($this->_ci_app_paths[$path]);
-		}
-	}
-
-	/**
-	 * Get Package Paths
-	 *
-	 * Return a list of all package paths, by default it will ignore BASEPATH.
-	 *
-	 * @param	boolean	include base path flag
-	 * @return	array	package path list
-	 */
-	public function get_package_paths($include_base = FALSE) {
-		// Just return path list - only the loader needs the MVC cascade feature
-		return $include_base === TRUE ? $this->_ci_base_paths : array_keys($this->_ci_app_paths);
 	}
 
 	/**
@@ -665,6 +481,18 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	}
 
 	/**
+	 * Determine if a class method can actually be called (from outside the class)
+	 *
+	 * @param	mixed	class name or object
+	 * @param	string	method
+	 * @return	boolean	TRUE if publicly callable, otherwise FALSE
+	 */
+	public function is_callable($class, $method) {
+		// Just return whether the case-insensitive method is in the public methods
+		return in_array(strtolower($method), array_map('strtolower', get_class_methods($class)));
+	}
+
+	/**
 	 * Error Handler
 	 *
 	 * This function lets us invoke the exception class and display errors using
@@ -679,12 +507,11 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	public function show_error($message, $status_code = 500, $heading = 'An Error Was Encountered') {
 		// Ensure Exceptions is loaded
 		if (!isset($this->exceptions)) {
-			$this->_load_core_class('Exceptions');
+			$this->_load('core', 'Exceptions');
 		}
 
-		// Call show_error and exit
-		echo $this->exceptions->show_error($heading, $message, 'error_general', $status_code);
-		exit;
+		// Call show_error, which will exit
+		$this->exceptions->show_error($heading, $message, 'error_general', $status_code);
 	}
 
 	/**
@@ -700,12 +527,11 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	public function show_404($page = '', $log_error = TRUE) {
 		// Ensure Exceptions is loaded
 		if (!isset($this->exceptions)) {
-			$this->_load_core_class('Exceptions');
+			$this->_load('core', 'Exceptions');
 		}
 
-		// Call show_404 and exit
+		// Call show_404, which will exit
 		$this->exceptions->show_404($page, $log_error);
-		exit;
 	}
 
 	/**
@@ -727,7 +553,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 
 		// Ensure Log is loaded
 		if (!isset($this->log)) {
-			$this->_load_library('Log');
+			$this->_load('library', 'Log');
 		}
 
 		// Write log message
@@ -765,6 +591,184 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	}
 
 	/**
+	 * Add Package Path
+	 *
+	 * Prepends a parent path to the base, app, and config path arrays
+	 *
+	 * @param	string	path
+	 * @param	boolean	view	cascade flag
+	 * @return	void
+	 */
+	public function add_package_path($path, $view_cascade = TRUE) {
+		// Resolve path
+		$path = $this->_resolve_path($path);
+
+		// Prepend config file path
+		array_unshift(self::_ci_config_paths, $path);
+
+		// Prepend app path with view cascade param
+		$this->_ci_app_paths = array($path => $view_cascade) + $this->_ci_app_paths;
+	}
+
+	/**
+	 * Remove Package Path
+	 *
+	 * Remove a path from the base, app, and config path arrays if it exists
+	 * If no path is provided, the most recently added path is removed.
+	 *
+	 * @param	string	path
+	 * @param	boolean	remove	from config path flag
+	 * @return	void
+	 */
+	public function remove_package_path($path = '', $remove_config_path = TRUE) {
+		if ($path == '') {
+			// Shift last added path from each list
+			if ($remove_config_path) {
+				array_shift(self::_ci_config_paths);
+			}
+			array_shift($this->_ci_app_paths);
+			return;
+		}
+
+		// Resolve path
+		$path = $this->_resolve_path($path);
+
+		// Prevent app path removal - it is a default for all lists
+		if ($path == APPPATH) {
+			return;
+		}
+
+		// Unset path from config list
+		if ($remove_config_path && ($key = array_search($path, self::_ci_config_paths)) !== FALSE) {
+			unset(self::_ci_config_paths[$key]);
+		}
+
+		// Unset path from app list
+		if (isset($this->_ci_app_paths[$path])) {
+			unset($this->_ci_app_paths[$path]);
+		}
+	}
+
+	/**
+	 * Get Package Paths
+	 *
+	 * Return a list of all package paths, by default it will ignore BASEPATH.
+	 *
+	 * @param	boolean	include base path flag
+	 * @return	array	package path list
+	 */
+	public function get_package_paths($include_base = FALSE) {
+		// Just return path list - only _run_file() needs the cascade feature
+		$paths = array_keys($this->_ci_app_paths);
+		if ($include_base == TRUE) {
+			$paths[] = BASEPATH;
+		}
+		return $paths;
+	}
+
+	/**
+	 * Get config file contents
+	 *
+	 * This function searches the package paths for the named config file.
+	 * If $name is defined, it requires the file to contain an array by that name
+	 * and merges the arrays if found in multiple files.
+	 * Otherwise, it just includes each matching file found.
+	 *
+	 * @param	string	file name
+	 * @param	string	array name
+	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
+	 *					or FALSE if no matching file found
+	 */
+	public static function get_config($file, $name = NULL) {
+		// Prevent extra variable collection and return get_config_ext()
+		$extras = FALSE;
+		return self::get_config_ext($file, $name, $extras);
+	}
+
+	/**
+	 * Get config file contents with extra variables
+	 *
+	 * This function searches the package paths for the named config file.
+	 * If $name is defined, it requires the file to contain an array by that name
+	 * and merges the arrays if found in multiple files.
+	 * Otherwise, it just includes each matching file found.
+	 * Any other variables found in each file with names not starting with
+	 * an underscore are added to $_extras as an array element with the variable
+	 * name as a key. For this reason, all local variables start with an underscore.
+	 *
+	 * @param	string	file name
+	 * @param	string	array name
+	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
+	 *					or FALSE if no matching file found
+	 */
+	public static function get_config_ext($_file, $_name = NULL, &$_extras) {
+		// Ensure file starts with a slash and ends with .php
+		$_file = '/'.ltrim($_file, '\/');
+		if (!preg_match('/\.php$/', $_file)) {
+			$_file .= '.php';
+		}
+
+		// Set relative file paths to search
+		$_files = array();
+		if (defined('ENVIRONMENT')) {
+			// Check ENVIRONMENT for file
+			$_files[] = 'config/'.ENVIRONMENT.$_file;
+		}
+		$_files[] = 'config'.$_file;
+
+		// Merge arrays from all viable config paths
+		$_merged = array();
+		foreach (self::_ci_config_paths as $_path) {
+			// Check each variation
+			foreach ($_files as $_file) {
+				$_file_path = $_path.$_file;
+				if (file_exists($_file_path)) {
+					// Include file
+					include($_file_path);
+
+					// See if we're gathering extra variables
+					if ($_extras !== FALSE) {
+						// Get associative array of extra vars
+						foreach (get_defined_vars() as $_key => $_var) {
+							if (substr($_key, 0, 1) != '_' && $_key != $_name) {
+								$_extras[$_key] = $_var;
+							}
+						}
+					}
+
+					// See if we have an array to check for
+					if (empty($_name)) {
+						// Nope - just note we found something
+						$merged = TRUE;
+						continue;
+					}
+
+					// Check for named array
+					if (!is_array($$_name)) {
+						// Invalid - return bad filename
+						return $_file_path;
+					}
+
+					// Merge config and unset local
+					// Here, array_replace_recursive will recursively merge the arrays,
+					// adding new elements and replacing existing ones
+					$_merged = array_replace_recursive($_merged, $$_name);
+					unset($$_name);
+				}
+			}
+		}
+
+		// Test for merged config
+		if (empty($_merged)) {
+			// None - quit
+			return FALSE;
+		}
+
+		// Return merged config
+		return $_merged;
+	}
+
+	/**
 	 * Exception Handler
 	 *
 	 * This is the custom exception handler that is declaired in the constructor.
@@ -789,7 +793,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 
 		// Ensure the exception class is loaded
 		if (!isset($this->exceptions)) {
-			$this->_load_core_class('Exceptions');
+			$this->_load('core', 'Exceptions');
 		}
 
 		// Should we display the error? We'll get the current error_reporting
@@ -804,434 +808,241 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 	}
 
-    /**
-     * UNDER DEVELOPMENT!!
-     */
-    // _load_object('core', 'Router', array($this));
-    // _load_object('library', 'Log');
-    // _load_object('model', 'Model', NULL, '', '', 'Foo');
-    // _load_object('controller', 'Controller', NULL, '', $subdir, $class, $path);
-    protected function _load_object($type, $class, array $params = NULL, $obj_name = '', $subdir = '', $subclass = '',
-    $path = '') {
-        // Determine type and directory
-        switch ($type) {
-            case 'core':
-                $dir = $type.'/';
-                break;
-            case 'library':
-                $dir = 'libraries/';
-                break;
-            case 'model':
-            case 'controller':
-                $dir = $type.'s/';
-                break;
-            default:
-                $this->show_error('Invalid object type in load request: '.$type);
-        }
-
+	/**
+	 * Core loader
+	 *
+	 * This function loads a class, along with any subclass, instantiates it
+	 * (unless overridden), and attaches the object to the core.
+	 *
+	 * @param	string	object type ('core', 'library', 'helper', 'model', 'controller')
+	 * @param	string	class name
+	 * @param	string	object name
+	 * @param	array	constructor parameters
+	 * @param	string	subdirectory
+	 * @param	string	routed path for controllers
+	 * @return	void
+	 */
+	protected function _load($type, $class, $obj_name = '', $params = NULL, $subdir = '', $path = '') {
 		// Set name default
-		if ($obj_name == '') {
+		if ($obj_name !== FALSE && empty($obj_name)) {
 			$obj_name = strtolower($class);
 		}
 
-        // Determine if already loaded under this name
-        if ($this->is_loaded($class, $obj_name)) {
-            return;
-        }
+		// Determine if this class is already loaded under this name
+		if ($this->is_loaded($class, $obj_name)) {
+			return;
+		}
 
-        // Determine if name is in use
-        if ($obj_name !== FALSE && isset($this->$obj_name)) {
+		// Match type and set directory
+		switch ($type) {
+			case 'core':
+				$dir = $type.'/';
+				break;
+			case 'library':
+				$dir = 'libraries/';
+				break;
+			case 'helper':
+			case 'model':
+			case 'controller':
+				$dir = $type.'s/';
+				$subclass = $class;
+				$class = ucfirst($type);
+				break;
+			default:
+				$this->show_error('Invalid object type in load request: '.$type);
+		}
+
+		// Determine if name is in use
+		if ($obj_name !== FALSE && isset($this->$obj_name)) {
 			$this->show_error('The '.$type.' name you are loading is the name of a resource that is '.
 				'already being used: '.$obj_name);
-        }
+		}
 
-        // Load base class if necessary
-        $lowclass = strtolower($class);
-        $classnm = '';
-		$basename = 'CI_'.$class;
-		if (class_exists($basename)) {
-			// Class exists - set base to be attached
-			$classnm = $basename;
+		// Prepare search paths
+		$paths = array_keys($this->_ci_app_paths);
+		$basepaths[] = BASEPATH;
+		if ($type == 'core') {
+			// Core classes start with 'CI_' and get searched base first
+			$prefix = 'CI_';
+			$basepaths = array_reverse($basepaths);
 		}
 		else {
-            // Search for base file
-            $base_paths = array_keys($this->_ci_app_paths);
-            $base_paths[] = BASEPATH;
-            $file = $dir.$subdir.$lowclass.'.php';
-            foreach ($base_paths as $basepath) {
-				// See if file exists
-				if (file_exists($basepath.$file)) {
-					// Include file and set base to be attached
-					include($basepath.$file);
-					$classnm = $basename;
-					break;
-				}
-			}
+			// All others have no prefix
+			$prefix = '';
 		}
+		$test = ($type != 'helper');
 
-        // Load subclass if available and necessary
-		if (!empty($this->_ci_subclass_prefix)) {
-			// See if class is already loaded
-			$extname = $this->_ci_subclass_prefix.$class;
-			if (class_exists($extname)) {
-				// Yes - set extension to be attached
-				$classnm = $extname;
-			}
-			else {
-				// Check app paths for extension
-				$file = $dir.$subdir.$this->_ci_subclass_prefix.$lowclass.'.php';
-				foreach ($this->_ci_app_paths as $apppath => $cascade) {
-					if (file_exists($apppath.$file)) {
-						// Found it - include file and set extension to be attached
-						include($apppath.$file);
-						$classnm = $extname;
+		// Load base class - this must be found for any load
+		$classnm = $this->_include($basepaths, $dir.$subdir, $prefix, $class, $test);
+		if ($classnm == FALSE) {
+			// Not found - see if a subdirectory was specified
+			switch ($subdir) {
+				case '':
+					// None - take one last stab at finding the class in its own subdirectory
+					// If found, the subdirectory will apply to the subclass search below, as well.
+					$subdir = strtolower($class).'/';
+					$classnm = $this->_include($basepaths, $dir.$subdir, $prefix, $class, $test);
+					if ($classnm !== FALSE) {
+						// Found it
 						break;
 					}
-				}
+					// Else fall through
+				default:
+					// No base class is a fatal error
+					$msg = ucfirst($type).' base class '.$class.' could not be found';
+					$this->log_message('error', $msg);
+					$this->show_error($msg);
+					break;
 			}
 		}
 
-        // Check for a classname to load
-        if (empty($classnm)) {
-            $this->show_error('Could not find the '.$class.' class to load');
-        }
-
-        // Load final class if specified and necessary
-        if (!empty($subclass)) {
-			// See if class is already loaded
-            if (class_exists($subclass)) {
-				// Yes - set extension to be attached
-				$classnm = $subclass;
-            }
-			else {
-                // Check for path spec
-				$file = $dir.$subdir.$subclass.'.php';
-                if (empty($path)) {
-				    // Check app paths for extension
-                    foreach ($this->_ci_app_paths as $apppath => $cascade) {
-                        if (file_exists($apppath.$file)) {
-                            // Found it - set path
-                            $path = $apppath;
-                            break;
-                        }
-                    }
-
-                    if (empty($path)) {
-                        $this->show_error('Could not find the '.$subclass.' class to load');
-                    }
-                }
-
-                // Load subclass from path
-                require($path.$file);
-                $classnm = $subclass;
+		// Load subclass if available
+		$subpre = $this->_ci_subclass_prefix;
+		if (!empty($subpre)) {
+			// Try loading the subclass - none found is not fatal
+			$extclass = $this->_include($paths, $dir.$subdir.$subpre, $subpre, $class, $test);
+			if ($extclass !== FALSE) {
+				// Subclass found - override class to instantiate
+				$classnm = $extclass;
 			}
-        }
+		}
 
-        // Quit if not attaching object
-        if ($obj_name === FALSE) {
-            return;
-        }
+		// Load final class for model or controller
+		if (isset($subclass)) {
+			// Check for routed path
+			if (empty($path)) {
+				// None - search as usual
+				$classnm = $this->_include($paths, $dir.$subdir, '', $subclass);
+			}
+			else {
+				// Use routed path to include class
+				$file_path = $path.$dir.$subdir.$subclass.'.php';
+				if (file_exists($file_path)) {
+					// Include file and set class to instantiate
+					include($file_path);
+					$classnm = $subclass;
+				}
+				else {
+					// Mark failure for error below
+					$classnm = FALSE;
+				}
+			}
 
-        // Determine parameters
-        if ($type == 'core') {
-            // Each core class gets a reference to the parent
-            $params = $this;
-        }
-        else if ($type == 'library' && is_null($params)) {
+			// Make sure we found the class
+			if ($classnm == FALSE) {
+				// No final class is a fatal error
+				$msg = ucfirst($type).' class '.$subclass.' could not be found';
+				$this->log_message('error', $msg);
+				$this->show_error($msg);
+			}
+		}
+
+		// Get class name for _ci_loaded array
+		$name = isset($subclass) ? strtolower($subclass) : strtolower($class);
+		if ($obj_name === FALSE) {
+			// Mark class as loaded without name
+			$this->_ci_loaded[$name][] = TRUE;
+
+			// Nothing to attach - all done here
+			return;
+		}
+		else {
+			// Map object name to class
+			$this->_ci_loaded[$name][] = $obj_name;
+		}
+
+		// Determine parameters
+		if ($type == 'core') {
+			// Each core class gets a reference to the parent
+			if (!is_null($params)) {
+				// Pass core params as extras
+				$extras = $params;
+			}
+			$params = $this;
+		}
+		else if ($type == 'library' && is_null($params)) {
 			// See if there's a config file for the class
-			$config = self::get_config($lowclass.'.php', 'config');
+			$file = strtolower($class).'.php';
+			$config = self::get_config($file, 'config');
 			if (!is_array($config)) {
 				// Try uppercase
-			    $config = self::get_config(ucfirst($lowclass).'.php', 'config');
+				$config = self::get_config(ucfirst($file), 'config');
 			}
 
 			// Set params to config if found
 			if (is_array($config)) {
-				$params = $config;
-			}
-        }
-
-        // Attach object
-        if (is_null($params)) {
-            $this->$obj_name = new $classnm();
-        }
-        else {
-            $this->$obj_name = new $classnm($params);
-        }
-
-		// Map object name to class
-		$this->_ci_classes[$lowclass][] = $obj_name;
-    }
-
-	/**
-	 * Load library
-	 *
-	 * This function loads the requested library class on behalf of the Loader
-	 *
-	 * @access	protected
-	 * @param	string	class name
-	 * @param	string	class subdirectory
-	 * @param	mixed	any	additional parameters
-	 * @param	mixed	object name or FALSE to prevent attachment
-	 * @return	void
-	 */
-	protected function _load_library($class, $subdir, $params, $obj_name) {
-		// Check for name conflict
-		if ($obj_name !== FALSE && isset($this->$obj_name)) {
-			$this->show_error('The library name you are loading is the name of a resource that is '.
-				'already being used: '.$obj_name);
-		}
-
-		// Is this a class extension request?
-		// Extensions may exist anywhere in the app paths, building on a core
-		// library in the base path. Each path is checked for lowercase and
-		// first-uppercase versions of the filename
-		$classnm = '';
-		$exists = FALSE;
-		if (!empty($this->_ci_subclass_prefix)) {
-			// Search app paths for extension
-			foreach ($this->_ci_app_paths as $path => $cascade) {
-				// Check for prefix on capitalized and lowercase class name
-				$path .= 'libraries/'.$subdir.$this->_ci_subclass_prefix;
-				foreach (array(strtolower($class), ucfirst($class)) as $file) {
-					// See if extension file exists
-					$file = $path.$file.'.php';
-					if (file_exists($file)) {
-						// Found extension - require base class from base path
-						$basefile = BASEPATH.'libraries/'.ucfirst($class).'.php';
-						if (file_exists($basefile)) {
-							// Include base class followed by subclass for inheritance
-							include_once($basefile);
-							include_once($file);
-
-							// If we're not attaching, we're done
-							if ($obj_name === FALSE) {
-								return;
-							}
-
-							// Set class name and break
-							$classnm = $this->_ci_subclass_prefix.ucfirst($class);
-							if (class_exists($classnm)) {
-								$exists = TRUE;
-							}
-							break 2;
-						}
-						else {
-							$msg = 'Unable to load the requested class: '.$class;
-							$this->log_message('error', $msg);
-							$this->show_error($msg);
-						}
-					}
-				}
+				$params =& $config;
 			}
 		}
 
-		// Did we find an extension?
-		if ($classnm == '') {
-			// No - search base paths for the requested library
-			// The library may exist anywhere in the base paths, including
-			// added package paths. Each path is checked for lowercase and
-			// first-uppercase versions of the filename
-			foreach ($this->_ci_base_paths as $path) {
-				// Check for capitalized and lowercase class name
-				$path .= 'libraries/'.$subdir;
-				foreach (array(strtolower($class), ucfirst($class)) as $file) {
-					// See if file exists
-					$file = $path.$file.'.php';
-					if (file_exists($file)) {
-						// Include file
-						include_once($file);
-
-						// If we're not attaching, we're done
-						if ($obj_name === FALSE) {
-							return;
-						}
-
-						// Determine class name and break
-						$name = ucfirst($class);
-						if (class_exists('CI_'.$name)) {
-							$classnm = 'CI_'.$name;
-							$exists = TRUE;
-						}
-						else if (class_exists($this->_ci_subclass_prefix.$name)) {
-							$classnm = $this->_ci_subclass_prefix.$name;
-							$exists = TRUE;
-						}
-						else if (class_exists($name)) {
-							$classnm = $name;
-							$exists = TRUE;
-						}
-						break 2;
-					}
-				}
-			}
-		}
-
-		// See if a class name was found
-		if ($classnm == '') {
-			// No - one last attempt. Maybe the library is in a subdirectory, but it wasn't specified?
-			if ($classnm == '' && $subdir == '') {
-				$path = strtolower($class).'/'.$class;
-				return $this->_load_library($path, $params);
-			}
-
-			// If we got this far we were unable to find the requested class.
-			$msg = 'Unable to load the requested class: '.$class;
-			$this->log_message('error', $msg);
-			$this->show_error($msg);
-		}
-
-		// Check if class exists
-		if ($exists == FALSE) {
-			$msg = 'Non-existent class: '.$classnm;
-			$this->log_message('error', $msg);
-			$this->show_error($msg);
-		}
-
-		// Map object name to class
-		$class = strtolower($class);
-		$this->_ci_classes[$class][] = $obj_name;
-
-		// Do we need to check for configs?
-		if (is_null($params)) {
-			// See if there's a config file for the class
-			$config = $this->config->get($class, TRUE);
-			if ($config === FALSE) {
-				// Try uppercase
-				$config = $this->config->get(ucfirst($class), TRUE);
-			}
-
-			// Set params to config if found
-			if ($config !== FALSE) {
-				$params = $config;
-			}
-		}
-
-		// Instantiate the class
+		// Attach object
 		if (is_null($params)) {
 			$this->$obj_name = new $classnm();
 		}
-		else {
+		else if (!isset($extras)) {
 			$this->$obj_name = new $classnm($params);
 		}
+		else {
+			$this->$obj_name = new $classnm($params, $extras);
+		}
 	}
 
 	/**
-	 * Load helper file
+	 * Include source
 	 *
-	 * This function loads the requested helper file on behalf of the Loader
+	 * This helper function searches the provided paths for a source file in the
+	 * specified subdirectory and includes the source if found. It also verifies that
+	 * the class exists after including the source.
 	 *
-	 * @access	protected
-	 * @param	string	helper name
-	 * @return	void
+	 * @param	array	path list
+	 * @param	string	subdirectory
+	 * @param	string	class prefix
+	 * @param	string	class name
+	 * @return	mixed	class name with prefix if found, otherwise FALSE
 	 */
-	protected function _load_helper($name) {
-		// Append helper extension
-		$name .= '_helper.php';
+	protected function _include(array &$paths, $dir, $prefix, $class, $test = TRUE) {
+		// Assemble class name and see if class already exists
+		$classnm = $prefix.$class;
+		if ($test && class_exists($classnm)) {
+			// No need to include - return prefixed class
+			return $classnm;
+		}
 
-		// Is this a helper extension request?
-		if (!empty($this->_ci_subclass_prefix)) {
-			// Search app paths for extension
-			$file = 'helpers/'.$this->_ci_subclass_prefix.$name;
-			foreach ($this->_ci_app_paths as $path => $cascade) {
-				// Check each path for extension
-				$path .= $file;
-				if (file_exists($path)) {
-					// Found extension - require base class from base path
-					$basefile = BASEPATH.'helpers/'.$name;
-					if (file_exists($basefile)) {
-						// Include extension followed by base, so extension overrides base functions
-						include_once($path);
-						include_once($basefile);
-						$this->log_message('debug', 'Helper loaded: '.$path);
-						return;
+		// Prepare case options with file extension
+		$file = strtolower($class).'.php';
+		$files = array(ucfirst($file), $file);
+
+		// Search each path
+		foreach ($paths as &$path) {
+			// Append subdirectory
+			$path .= $dir;
+
+			// Try uppercase and lowercase file names
+			foreach ($files as &$file) {
+				// See if file exists
+				if (file_exists($path.$file)) {
+					// Include file and check for class
+					include($path.$file);
+					if (!$test || class_exists($classnm)) {
+						// Good - return prefixed class name
+						return $classnm;
 					}
 					else {
-						$this->show_error('Unable to load the requested file: helpers/'.$name);
+						// Bad file - fail out
+						return FALSE;
 					}
 				}
 			}
 		}
 
-		// Search base paths for the requested helper
-		$file = 'helpers/'.$name;
-		foreach ($this->_ci_base_paths as $path) {
-			// Check each path for helper
-			$path .= $file;
-			if (file_exists($path)) {
-				// Include helper and return
-				include_once($path);
-				$this->log_message('debug', 'Helper loaded: '.$path);
-				return;
-			}
-		}
-
-		// Unable to load the helper
-		$this->show_error('Unable to load the requested file: helpers/'.$name);
+		// Not found - return failure
+		return FALSE;
 	}
 
 	/**
-	 * Load user class object
+	 * Run user file
 	 *
-	 * Loads Model or Controller object on behalf of the Loader
-	 *
-	 * @access	protected
-	 * @param	string	class name
-	 * @param	string	package path for controller
-	 * @param	string	class subdirectory
-	 * @param	string	object name
-	 * @return	void
-	 */
-	protected function _load_user_class($class, $path, $subdir, $obj_name) {
-		// Set type
-		$type = empty($path) ? 'model' : 'controller';
-
-		// Check for name conflict
-		if (isset($this->$obj_name)) {
-			$this->show_error('The '.$type.' name you are loading is the name of a resource that is '.
-				'already being used: '.$obj_name);
-		}
-
-		// Load base class(es) if not already done
-		$base = ucfirst($type);
-		if (!class_exists('CI_'.$base)) {
-			$this->_load_core_class($base, FALSE);
-		}
-
-		// See if path was provided
-		$class = strtolower($class);
-        $file = $type.'s/'.$subdir.$class.'.php';
-		if (empty($path)) {
-			// Search path list for class
-			foreach ($this->_ci_app_paths as $app_path => $view_cascade) {
-				// Check each path for filename
-				if (file_exists($app_path.$file)) {
-					$path = $app_path;
-					break;
-				}
-			}
-		}
-
-		// Check for valid path
-		if (empty($path)) {
-			$this->show_error('Unable to locate the '.$type.' you have specified: '.$class);
-		}
-
-		// Include source
-		require_once($path.$file);
-
-		// Instantiate class and attach
-		$classnm = ucfirst($class);
-		$this->$obj_name = new $classnm();
-
-		// Map object name to class
-		$this->_ci_classes[$class][] = $obj_name;
-	}
-
-	/**
-	 * Load user file
-	 *
-	 * This function is used to load views and files on behalf of the Loader.
+	 * This function is used to execute views and files on behalf of the Loader.
 	 * Variables are prefixed with _ci_ to avoid symbol collision with
 	 * variables made available to view files.
 	 * Files automatically have access to all loaded objects via $this->object.
@@ -1243,7 +1054,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * @param	array	local vars to declare
 	 * @return	mixed	output if $_ci_return is TRUE, otherwise void
 	 */
-	protected function _load_file($_ci_path, $_ci_view, $_ci_return, array $_ci_vars = NULL) {
+	protected function _run_file($_ci_path, $_ci_view, $_ci_return, array $_ci_vars = NULL) {
 		// Set the path to the requested file
 		$exists = FALSE;
 		if ($_ci_view) {
@@ -1271,7 +1082,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		}
 		unset($_ci_view);
 
-		if ( ! $exists) {
+		if (!$exists) {
 			$this->show_error('Unable to load the requested file: '.$file);
 		}
 		unset($exists);
@@ -1288,23 +1099,25 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		 *
 		 * We buffer the output for two reasons:
 		 * 1. Speed. You get a significant speed boost.
-		 * 2. So that the final rendered template can be post-processed by the
-		 *	output class. Why do we need post processing? For one thing, in
-		 *	order to show the elapsed page load time. Unless we can intercept
-		 *	the content right before it's sent to the browser and then stop
+		 * 2. So that the final rendered template can be post-processed by the output class.
+		 *	Why do we need post processing? For one thing, in order to show the elapsed page load time.
+		 *	Unless we can intercept the content right before it's sent to the browser and then stop
 		 *	the timer it won't be accurate.
 		 */
 		ob_start();
 
-		// If the PHP installation does not support short tags we'll
-		// do a little string replacement, changing the short tags
-		// to standard PHP echo statements.
+		// If the PHP installation does not support short tags we'll do a little string replacement,
+		// changing the short tags to standard PHP echo statements.
 		if ((bool) @ini_get('short_open_tag') === FALSE && $this->config->item('rewrite_short_tags') == TRUE) {
-			echo eval('?>'.preg_replace('/;*\s*\?>/', '; ?>', str_replace('<?=', '<?php echo ',
-				file_get_contents($_ci_path))));
+			// Assemble strings to help prevent tag interpretation
+			$end = '?'.'>';
+			$pattern = '/<'.'\?=\s*([^>]*);*\s*\?'.'>/';
+			$replace = '<'.'?php echo \1; ?'.'>';
+			echo eval($end.preg_replace($pattern, $replace, file_get_contents($_ci_path)));
 		}
 		else {
-			include($_ci_path); // include() vs include_once() allows for multiple views with the same name
+			// Include file (include_once would prevent multiple views with the same name)
+			include($_ci_path);
 		}
 
 		$this->log_message('debug', 'File loaded: '.$_ci_path);
@@ -1334,96 +1147,17 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	}
 
 	/**
-	 * Core class loader
-	 *
-	 * If the requested class does not exist it is instantiated and attached
-	 *
-	 * @access	private
-	 * @param	string	the	class name being requested
-	 * @param	mixed	the object name or FALSE to prevent attachment
-	 * @return	void
-	 */
-	private function _load_core_class($class, $obj_name = '') {
-		// Set name default
-		if ($obj_name == '') {
-			$obj_name = strtolower($class);
-		}
-
-		// Is the object already loaded? If so, we're done...
-		if ($obj_name !== FALSE && isset($this->$obj_name)) {
-			return;
-		}
-
-		$name = FALSE;
-
-		// See if the class already exists
-		$basename = 'CI_'.$class;
-		if (class_exists($basename)) {
-			// Class exists - set base to be attached
-			$name = $basename;
-		}
-		else {
-			// Look for the class first in the native system/libraries folder
-			// then in the local application/libraries folder
-			$file = 'core/'.$class.'.php';
-			foreach (array(BASEPATH, APPPATH) as $path) {
-				// See if file exists
-				if (file_exists($path.$file)) {
-					// Include file and set base to be attached
-					include($path.$file);
-					$name = 'CI_'.$class;
-					break;
-				}
-			}
-		}
-
-		// Is there a class extension to be loaded?
-		if (!empty($this->_ci_subclass_prefix)) {
-			// See if class is already loaded
-			$extname = $this->_ci_subclass_prefix.$class;
-			if (class_exists($extname)) {
-				// Yes - set extension to be attached
-				$name = $extname;
-			}
-			else {
-				// Check app paths for extension
-				$file = 'core/'.$this->_ci_subclass_prefix.$class.'.php';
-				foreach ($this->_ci_app_paths as $path => $cascade) {
-					if (file_exists($path.$file)) {
-						// Found it - include file and set extension to be attached
-						include($file);
-						$name = $extname;
-						break;
-					}
-				}
-			}
-		}
-
-		// Did we find the class?
-		if ($name === FALSE) {
-			// Note: We use exit() rather then show_error() in order to avoid a
-			// self-referencing loop with the Excptions class
-			exit('Unable to locate the specified class: '.$class.'.php');
-		}
-
-		// Instantiate class object
-		if ($obj_name !== FALSE) {
-			$this->$obj_name = new $name($this);
-		}
-	}
-
-	/**
 	 * Resolves package path
 	 *
 	 * This function is used to identify absolute paths in the filesystem and include path
 	 *
-	 * @access	private
+	 * @access	protected
 	 * @param	string	initial path
 	 * @return	string	resolved path
 	 */
-	private function _resolve_path($path) {
+	protected function _resolve_path($path) {
 		// Assert trailing slash
-		$path = rtrim($path, "/\\").'/';
+		$path = rtrim($path, '\/').'/';
 
 		// See if path exists as-is
 		if (file_exists($path)) {
@@ -1433,10 +1167,10 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		// Strip any leading slash and pair with include directories
 		$dir = ltrim($path, "/\\");
 		foreach (explode(PATH_SEPARATOR, get_include_path()) as $include) {
-			$include = rtrim($include, "/\\");
-			if (file_exists($include.'/'.$dir)) {
+			$include = rtrim($include, '\/').'/'.$dir;
+			if (file_exists($include)) {
 				// Found include path - clean up and return
-				return $include.'/'.$dir;
+				return $include;
 			}
 		}
 
@@ -1447,9 +1181,9 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 // END CodeIgniter class
 
 /**
- * Get instance
+ * Get instance [DEPRECATED]
  *
- * Global function to return singleton instance of root object
+ * Global function to return singleton instance of core object
  *
  * @return	object
  */
@@ -1459,9 +1193,9 @@ function &get_instance() {
 }
 
 /**
- * Show error
+ * Show error [DEPRECATED]
  *
- * Global function to call root method
+ * Global function to call core method
  *
  * @param	string	error message
  * @param	int	status code
@@ -1475,9 +1209,9 @@ function show_error($message, $status_code = 500, $heading = 'An Error Was Encou
 }
 
 /**
- * Log message
+ * Log message [DEPRECATED]
  *
- * Global function to call root method
+ * Global function to call core method
  *
  * @param	string	error level
  * @param	string	error message

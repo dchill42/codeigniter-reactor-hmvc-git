@@ -29,8 +29,11 @@ class CI_Lang {
 
 	/**
 	 * Constructor
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct($CI) {
+	public function __construct(CodeIgniter $CI) {
+		// Attach parent reference
 		$this->CI =& $CI;
 		$CI->log_message('debug', 'Language Class Initialized');
 	}
