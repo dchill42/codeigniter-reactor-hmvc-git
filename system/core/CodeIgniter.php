@@ -16,7 +16,7 @@
 // ------------------------------------------------------------------------
 
 /**
- * CodeIgniter Application Root Class
+ * CodeIgniter Application Core Class
  *
  * This class object is the super class that every library in
  * CodeIgniter will be assigned to.
@@ -80,7 +80,7 @@ class CodeIgniter {
 	/**
 	 * Load core class
 	 *
-	 * Loads a core class and registers it with root object
+	 * Loads a core class and registers it with core object
 	 *
 	 * @param	string	class name
 	 * @return	object
@@ -150,27 +150,9 @@ class CodeIgniter {
 	}
 
 	/**
-	 * Call magic method
-	 *
-	 * Calls method of routed controller if not existent in root
-	 *
-	 * @param	string	method name
-	 * @param	array	method arguments
-	 * @return	mixed
-	 */
-	public function __call($name, $arguments)
-	{
-		// Check for routed controller and method
-		if (isset($this->routed) && method_exists($this->routed, $name))
-		{
-			return call_user_func_array(array($this->routed, $name), $arguments);
-		}
-	}
-
-	/**
 	 * Get instance
 	 *
-	 * Returns singleton instance of root object
+	 * Returns singleton instance of core object
 	 *
 	 * @return	object
 	 */
@@ -255,10 +237,10 @@ class CodeIgniter {
 
 /*
  * ------------------------------------------------------
- *  Load the application root
+ *  Load the application core
  * ------------------------------------------------------
  */
-	// Instantiate CodeIgniter
+	// Instantiate CodeIgniter [DEPRECATED - call CodeIgniter::instance() directly]
 	function &get_instance()
 	{
 		return CodeIgniter::instance();
