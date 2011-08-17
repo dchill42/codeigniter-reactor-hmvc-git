@@ -171,17 +171,12 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 					}
 				}
 
-				// Check each path for file
-				$file = 'core/'.$pre.$class.'.php';
-				foreach ($paths as $path) {
-					$file_path = $path.$file;
-					if (file_exists($file_path)) {
-						// Include the source and set the subclass name
-						include($file_path);
-						$class = $pre.$class;
-						break;
-					}
-				}
+                // Include source
+                $subclass = self::_include($paths, 'core/'.$pre, $pre, $class);
+                if ($subclass !== FALSE) {
+                    // Set subclass to be instantiated
+                    $class = $subclass;
+                }
 			}
 
 			// Instantiate object and assign to static instance
@@ -872,7 +867,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		$test = ($type != 'helper');
 
 		// Load base class - this must be found for any load
-		$classnm = $this->_include($basepaths, $dir.$subdir, $prefix, $class, $test);
+		$classnm = self::_include($basepaths, $dir.$subdir, $prefix, $class, $test);
 		if ($classnm == FALSE) {
 			// Not found - see if a subdirectory was specified
 			switch ($subdir) {
@@ -880,7 +875,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 					// None - take one last stab at finding the class in its own subdirectory
 					// If found, the subdirectory will apply to the subclass search below, as well.
 					$subdir = strtolower($class).'/';
-					$classnm = $this->_include($basepaths, $dir.$subdir, $prefix, $class, $test);
+					$classnm = self::_include($basepaths, $dir.$subdir, $prefix, $class, $test);
 					if ($classnm !== FALSE) {
 						// Found it
 						break;
@@ -899,7 +894,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		$subpre = $this->_ci_subclass_prefix;
 		if (!empty($subpre)) {
 			// Try loading the subclass - none found is not fatal
-			$extclass = $this->_include($paths, $dir.$subdir.$subpre, $subpre, $class, $test);
+			$extclass = self::_include($paths, $dir.$subdir.$subpre, $subpre, $class, $test);
 			if ($extclass !== FALSE) {
 				// Subclass found - override class to instantiate
 				$classnm = $extclass;
@@ -911,7 +906,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 			// Check for routed path
 			if (empty($path)) {
 				// None - search as usual
-				$classnm = $this->_include($paths, $dir.$subdir, '', $subclass);
+				$classnm = self::_include($paths, $dir.$subdir, '', $subclass);
 			}
 			else {
 				// Use routed path to include class
@@ -1000,7 +995,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
      * @param   boolean FALSE to skip class_exists test
 	 * @return	mixed	class name with prefix if found, otherwise FALSE
 	 */
-	protected function _include(array &$paths, $dir, $prefix, $class, $test = TRUE) {
+	protected static function _include(array &$paths, $dir, $prefix, $class, $test = TRUE) {
 		// Assemble class name and see if class already exists
 		$classnm = $prefix.$class;
 		if ($test && class_exists($classnm)) {
