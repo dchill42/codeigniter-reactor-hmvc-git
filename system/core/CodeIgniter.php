@@ -18,47 +18,55 @@ define('CI_VERSION', '2.0.2');
 define('CI_CORE', FALSE);
 
 /**
- * CodeIgniter Loader Base Class
+ * CodeIgniter Core Sharing Base Class
  *
- * This class declares the protected loader methods of the application core, below.
- * By deriving both the CodeIgniter class and the Loader class from this common
- * parent, both can access these protected methods. This allows the core loading
- * mechanisms to live in CodeIgniter, where these methods are overloaded with their
- * actual functionality, but forces users to load resources through the Loader API.
- * The reverse works for _autoload(), which is defined in Loader and called from
- * CodeIgniter.
+ * This base class permits access to protected methods of other core classes
+ * also derived from CI_CoreShare.
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
  * @category	Libraries
- * @author		Darren Hill <dchill42@gmail.com>, St. Petersburg College
+ * @author		ExpressionEngine Dev Team
  */
-class CI_LoaderBase {
-	// CodeIgniter methods
-	protected function _load($type, $class, $obj_name = '', array $params = NULL, $subdir = '', $path = '') { }
-	protected function _run_file($_ci_path, $_ci_view, $_ci_return, array $_ci_vars) { }
-	// Loader method
-	protected function _autoloader($autoload) { }
+class CI_CoreShare {
+	/**
+	 * Call protected core method
+	 *
+	 * This function calls a protected method on another CoreShare object.
+	 * It accepts any number of arguments after the object and method, which
+	 * are passed on to the called method.
+	 *
+	 * @param	object	CoreShare object
+	 * @param	string	method to call
+	 * @param	...		method arguments
+	 * @return	mixed	method return value
+	 */
+	protected final function _call_core(CI_CoreShare $object, $method) {
+		// Restrict usage to specific classes
+		foreach (array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output') as $class) {
+			if (is_a($this, $class)) {
+				// Call protected method of other Core object
+				return call_user_func_array(array($object, $method), array_slice(func_get_args(), 2));
+			}
+		}
+
+		// If we got here, someone is trying to hijack the core!
+		CodeIgniter::instance()->show_error('Class '.get_class($this).' is not an authorized core sharing class');
+	}
 }
 
 /**
- * CodeIgniter Router Base Class
+ * CodeIgniter End Run Exception
  *
- * Just like CI_LoaderBase above, this class allows sharing of protected members
- * and methods between CodeIgniter, URI, and Router.
+ * This PHP Exception bypasses any remaining Controller code, returning control to
+ * CodeIgniter, which will display any output and exit.
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
  * @category	Libraries
- * @author		Darren Hill <dchill42@gmail.com>, St. Petersburg College
+ * @author		ExpressionEngine Dev Team
  */
-class CI_RouterBase {
-	// URI methods
-	protected function _load_uri() { }
-	protected function _routed(array $rsegments) { }
-	// Router method
-	protected function _set_routing() { }
-}
+class CI_EndRun extends Exception { }
 
 /**
  * CodeIgniter Application Core Class
@@ -70,9 +78,8 @@ class CI_RouterBase {
  * @subpackage	Libraries
  * @category	Libraries
  * @author		ExpressionEngine Dev Team
- * @link		http://codeigniter.com/user_guide/general/controllers.html
  */
-class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
+class CodeIgniter extends CI_CoreShare {
 	protected static $_ci_instance		= NULL;
 	protected static $_ci_config_paths	= array(APPPATH);
 	protected $_ci_app_paths			= array(APPPATH => TRUE);
@@ -171,12 +178,12 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 					}
 				}
 
-                // Include source
-                $subclass = self::_include($paths, 'core/'.$pre, $pre, $class);
-                if ($subclass !== FALSE) {
-                    // Set subclass to be instantiated
-                    $class = $subclass;
-                }
+				// Include source
+				$subclass = self::_include($paths, 'core/'.$pre, $pre, $class);
+				if ($subclass !== FALSE) {
+					// Set subclass to be instantiated
+					$class = $subclass;
+				}
 			}
 
 			// Instantiate object and assign to static instance
@@ -250,7 +257,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 				$this->_load('core', 'Hooks', '', $hooks);
 
 				// Call pre_system hook
-				$this->hooks->_call_hook('pre_system');
+				$this->_call_core($this->hooks, '_call_hook', 'pre_system');
 			}
 		}
 
@@ -264,12 +271,12 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		$this->_load('core', 'Router');			// Router depends on URI and Output
 
 		// Set routing with any overrides from index.php
-		$this->router->_set_routing($routing);
+		$this->_call_core($this->router, '_set_routing', $routing);
 
 		// Check for cache override or failed cache display
 		// If not overridden, and a valid cache exists, we're done
-		if ((isset($this->hooks) && $this->hooks->_call_hook('cache_override') === TRUE) ||
-		$this->output->_display_cache() == FALSE) {
+		if ($this->_call_hook('cache_override') === TRUE ||
+		$this->_call_core($this->output, '_display_cache') == FALSE) {
 			// Load remaining core classes
 			$this->_load('core', 'Security');
 			$this->_load('core', 'Utf8');
@@ -278,7 +285,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 
 			// Autoload any remaining resources
 			if (isset($this->_ci_autoload)) {
-				$this->load->_autoloader($this->_ci_autoload);
+				$this->_call_core($this->load, '_autoloader', $this->_ci_autoload);
 				unset($this->_ci_autoload);
 			}
 
@@ -298,9 +305,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 */
 	protected function run_controller() {
 		// Call the "pre_controller" hook
-		if (isset($this->hooks)) {
-			$this->hooks->_call_hook('pre_controller');
-		}
+		$this->_call_hook('pre_controller');
 
 		// Get the parsed route and extract segments
 		$route = $this->router->fetch_route();
@@ -319,14 +324,17 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		$this->routed =& $this->$class;
 
 		// Call the "post_controller_constructor" hook
-		if (isset($this->hooks)) {
-			$this->hooks->_call_hook('post_controller_constructor');
-		}
+		$this->_call_hook('post_controller_constructor');
 
 		// Call the requested method with remaining route segments as arguments
-		if ($this->call_controller($class, $method, $route) == FALSE) {
-			// Both _remap and $method failed - go to 404
-			$this->show_404($class.'/'.$method);
+		try {
+			if ($this->call_controller($class, $method, $route) == FALSE) {
+				// Both _remap and $method failed - go to 404
+				$this->show_404($class.'/'.$method);
+			}
+		}
+		catch (CI_EndRun $ex) {
+			// Nothing to do here but catch and allow the rest of run_controller() execute
 		}
 
 		// Mark a benchmark end point
@@ -337,19 +345,19 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		// Display output
 		if (isset($this->hooks)) {
 			// Call the "post_controller" hook
-			$this->hooks->_call_hook('post_controller');
+			$this->_call_core($this->hooks, '_call_hook', 'post_controller');
 
 			// Send the final rendered output to the browser
-			if ($this->hooks->_call_hook('display_override') === FALSE) {
-				$this->output->_display();
+			if ($this->_call_core($this->hooks, '_call_hook', 'display_override') === FALSE) {
+				$this->_call_core($this->output, '_display');
 			}
 
 			// Call the "post_system" hook
-			$this->hooks->_call_hook('post_system');
+			$this->_call_core($this->hooks, '_call_hook', 'post_system');
 		}
 		else {
 			// Just call display
-			$this->output->_display();
+			$this->_call_core($this->output, '_display');
 		}
 	}
 
@@ -691,7 +699,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 *
 	 * @param	string	file name
 	 * @param	string	array name
-     * @param   array   reference to array for extra variables (or FALSE to skip collection)
+	 * @param	array	reference to array for extra variables (or FALSE to skip collection)
 	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
 	 *					or FALSE if no matching file found
 	 */
@@ -992,7 +1000,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * @param	string	subdirectory
 	 * @param	string	class prefix
 	 * @param	string	class name
-     * @param   boolean FALSE to skip class_exists test
+	 * @param	boolean	FALSE to skip class_exists test
 	 * @return	mixed	class name with prefix if found, otherwise FALSE
 	 */
 	protected static function _include(array &$paths, $dir, $prefix, $class, $test = TRUE) {
@@ -1172,6 +1180,22 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		// If we got here, it's not a real path - just return as-is
 		return $path;
 	}
+
+	/**
+	 * Call a hook if enabled
+	 *
+	 * @param	string	hook name
+	 * @return	mixed	NULL if disabled, otherwise hook return value
+	 */
+	protected function _call_hook($hook) {
+		// If we have no hooks, return NULL
+		if (!isset($this->hooks)) {
+			return NULL;
+		}
+
+		// Otherwise, call the hook
+		return $this->_call_core($this->hooks, '_call_hook', $hook);
+	}
 }
 // END CodeIgniter class
 
@@ -1220,8 +1244,7 @@ function log_message($level, $message, $php_error = FALSE) {
 }
 
 // Load and run the application
-$CI =& CodeIgniter::instance($assign_to_config);
-$CI->run($routing);
+CodeIgniter::instance($assign_to_config)->run($routing);
 
 /* End of file CodeIgniter.php */
 /* Location: ./system/core/CodeIgniter.php */

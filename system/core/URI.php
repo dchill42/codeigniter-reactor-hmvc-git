@@ -17,7 +17,7 @@
  * URI Class
  *
  * Parses URIs and determines routing
- * The base class, CI_RouterBase, is defined in CodeIgniter.php and allows
+ * The base class, CI_CoreShare, is defined in CodeIgniter.php and allows
  * access to protected methods between CodeIgniter, Router, and URI.
  *
  * @package		CodeIgniter
@@ -26,7 +26,7 @@
  * @author		ExpressionEngine Dev Team
  * @link		http://codeigniter.com/user_guide/libraries/uri.html
  */
-class CI_URI extends CI_RouterBase {
+class CI_URI extends CI_CoreShare {
 	protected $CI			= NULL;
 	protected $Config		= NULL;
 	protected $enable_query	= FALSE;

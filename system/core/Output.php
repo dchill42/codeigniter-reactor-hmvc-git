@@ -17,6 +17,8 @@
  * Output Class
  *
  * Responsible for sending final output to browser
+ * The base class, CI_CoreShare, is defined in CodeIgniter.php and allows
+ * Loader access to protected loading methods in CodeIgniter.
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
@@ -24,7 +26,7 @@
  * @author		ExpressionEngine Dev Team
  * @link		http://codeigniter.com/user_guide/libraries/output.html
  */
-class CI_Output {
+class CI_Output extends CI_CoreShare {
 	protected $CI				= NULL;
 	protected $final_output		= '';
 	protected $cache_expiration	= 0;
@@ -274,9 +276,10 @@ class CI_Output {
 	 * with any server headers and profile data. It also stops the
 	 * benchmark timer so the page rendering speed and memory usage can be shown.
 	 *
+	 * @access	protected
 	 * @return	mixed
 	 */
-	public function _display($output = '') {
+	protected function _display($output = '') {
 		// Set the output data
 		if ($output == '') {
 			$output =& $this->final_output;
@@ -368,9 +371,10 @@ class CI_Output {
 	/**
 	 * Update/serve a cached file
 	 *
+	 * @access	protected
 	 * @return	void
 	 */
-	public function _display_cache() {
+	protected function _display_cache() {
 		$cache_path = ($this->CI->config->item('cache_path') == '') ? APPPATH.'cache/' :
 			$this->CI->config->item('cache_path');
 

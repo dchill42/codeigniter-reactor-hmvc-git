@@ -17,7 +17,7 @@
  * Router Class
  *
  * Parses URIs and determines routing
- * The base class, CI_RouterBase, is defined in CodeIgniter.php and allows
+ * The base class, CI_CoreShare, is defined in CodeIgniter.php and allows
  * access to protected methods between CodeIgniter, Router, and URI.
  *
  * @package		CodeIgniter
@@ -26,7 +26,7 @@
  * @category	Libraries
  * @link		http://codeigniter.com/user_guide/general/routing.html
  */
-class CI_Router extends CI_RouterBase {
+class CI_Router extends CI_CoreShare {
 	protected $CI			= NULL;
 	protected $routes		= array();
 	protected $route_stack	= array('', '', '', '');
@@ -282,7 +282,7 @@ class CI_Router extends CI_RouterBase {
 			$this->routes['default_controller'] != '') ? strtolower($this->routes['default_controller']) : FALSE;
 
 		// Fetch the complete URI string and turn the segment array into a URI string
-		$segments = $this->CI->uri->_load_uri();
+		$segments = $this->_call_core($this->CI->uri, '_load_uri');
 		$uri = implode('/', $segments);
 
 		// Is there a literal route match? If so we're done
@@ -356,7 +356,7 @@ class CI_Router extends CI_RouterBase {
 
 		// Update our "routed" segment array to contain the segments without the path or directory.
 		// Note: If there is no custom routing, this array will be identical to URI->segments
-		$this->CI->uri->_routed(array_slice($route, self::SEG_CLASS));
+		$this->_call_core($this->CI->uri, '_routed', array_slice($route, self::SEG_CLASS));
 	}
 
 	/**

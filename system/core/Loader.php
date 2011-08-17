@@ -17,7 +17,7 @@
  * Loader Class
  *
  * Loads resources (libraries, controllers, views, etc.) into CodeIgniter.
- * The base class, CI_LoaderBase, is defined in CodeIgniter.php and allows
+ * The base class, CI_CoreShare, is defined in CodeIgniter.php and allows
  * Loader access to protected loading methods in CodeIgniter.
  *
  * @package		CodeIgniter
@@ -26,7 +26,7 @@
  * @category	Loader
  * @link		http://codeigniter.com/user_guide/libraries/loader.html
  */
-class CI_Loader extends CI_LoaderBase {
+class CI_Loader extends CI_CoreShare {
 	protected $CI			= NULL;
 	protected $cached_vars	= array();
 	protected $varmap		= array('unit_test' => 'unit', 'user_agent' => 'agent');
@@ -79,7 +79,7 @@ class CI_Loader extends CI_LoaderBase {
 		}
 
 		// Load object in core
-		$this->CI->_load('library', $class, $obj_name, $params, $subdir);
+		$this->_call_core($this->CI, '_load', 'library', $class, $obj_name, $params, $subdir);
 	}
 
 	/**
@@ -136,7 +136,7 @@ class CI_Loader extends CI_LoaderBase {
 		}
 
 		// Load helper in core
-		$this->CI->_load('helper', $helper, FALSE, NULL, $subdir);
+		$this->_call_core($this->CI, '_load', 'helper', $helper, FALSE, NULL, $subdir);
 	}
 
 	/**
@@ -194,7 +194,7 @@ class CI_Loader extends CI_LoaderBase {
 		$method = array_shift($route);
 
 		// Load object in core
-		$this->CI->_load('controller', $class, $obj_name, NULL, $subdir, $path);
+		$this->_call_core($this->CI, '_load', 'controller', $class, $obj_name, NULL, $subdir, $path);
 
 		// Check if call is disabled
 		if ($call) {
@@ -242,7 +242,7 @@ class CI_Loader extends CI_LoaderBase {
 		}
 
 		// Load object in core
-		$this->CI->_load('model', $class, $obj_name, NULL, $subdir);
+		$this->_call_core($this->CI, '_load', 'model', $class, $obj_name, NULL, $subdir);
 	}
 
 	/**
@@ -266,7 +266,7 @@ class CI_Loader extends CI_LoaderBase {
 		}
 
 		// Run file in core context
-		return $this->CI->_run_file($view, TRUE, $return, $this->cached_vars);
+		return $this->_call_core($this->CI, '_run_file', $view, TRUE, $return, $this->cached_vars);
 	}
 
 	/**
@@ -388,7 +388,7 @@ class CI_Loader extends CI_LoaderBase {
 	 */
 	public function file($path, $return = FALSE) {
 		// Run file in core context
-		return $this->CI->_run_file($path, FALSE, $return);
+		return $this->_call_core($this->CI, '_run_file', $path, FALSE, $return);
 	}
 
 	/**

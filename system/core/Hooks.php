@@ -17,6 +17,8 @@
  * CodeIgniter Hooks Class
  *
  * Provides a mechanism to extend the base system without hacking.
+ * The base class, CI_CoreShare, is defined in CodeIgniter.php and allows
+ * Loader access to protected loading methods in CodeIgniter.
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
@@ -24,7 +26,7 @@
  * @author		ExpressionEngine Dev Team
  * @link		http://codeigniter.com/user_guide/libraries/encryption.html
  */
-class CI_Hooks {
+class CI_Hooks extends CI_CoreShare {
 	protected $hooks = array();
 	protected $in_progress = FALSE;
 
@@ -44,11 +46,11 @@ class CI_Hooks {
 	 *
 	 * Calls a particular hook
 	 *
-	 * @access	private
+	 * @access	protected
 	 * @param	string	the hook name
 	 * @return	mixed
 	 */
-	public function _call_hook($which = '') {
+	protected function _call_hook($which = '') {
 		if (!isset($this->hooks[$which])) {
 			return FALSE;
 		}
