@@ -26,6 +26,7 @@
  */
 class CI_Input {
 	protected $CI					= NULL;
+	protected $Config				= NULL;
 	protected $headers				= array();
 	public $ip_address				= FALSE;
 	public $user_agent				= FALSE;
@@ -42,8 +43,9 @@ class CI_Input {
 	 * @param	object	parent reference
 	 */
 	public function __construct(CodeIgniter $CI) {
-		// Attach parent reference
+		// Attach parent and object references
 		$this->CI =& $CI;
+		$this->Config =& $CI->config;
 
 		$CI->log_message('debug', 'Input Class Initialized');
 
@@ -170,22 +172,22 @@ class CI_Input {
 			}
 		}
 
-		$item = $this->CI->config->item('cookie_prefix');
+		$item = $this->Config->item('cookie_prefix');
 		if ($prefix == '' && !empty($item)) {
 			$prefix = $item;
 		}
 
-		$item = $this->CI->config->item('cookie_domain');
+		$item = $this->Config->item('cookie_domain');
 		if ($domain == '' && !empty($item)) {
 			$domain = $item;
 		}
 
-		$item = $this->CI->config->item('cookie_path');
+		$item = $this->Config->item('cookie_path');
 		if ($path == '/' && !empty($item) && $item != '/') {
 			$path = $item;
 		}
 
-		$item = $this->CI->config->item('cookie_secure');
+		$item = $this->Config->item('cookie_secure');
 		if ($secure == FALSE && $item != FALSE) {
 			$secure = $item;
 		}
@@ -221,9 +223,10 @@ class CI_Input {
 			return $this->ip_address;
 		}
 
-		if ($this->CI->config->item('proxy_ips') != '' && $this->server('HTTP_X_FORWARDED_FOR') &&
+		$proxy_ips = $this->Config->item('proxy_ips');
+		if ($proxy_ips != '' && $this->server('HTTP_X_FORWARDED_FOR') &&
 		$this->server('REMOTE_ADDR')) {
-			$proxies = preg_split('/[\s,]/', $this->CI->config->item('proxy_ips'), -1, PREG_SPLIT_NO_EMPTY);
+			$proxies = preg_split('/[\s,]/', $proxy_ips, -1, PREG_SPLIT_NO_EMPTY);
 			$proxies = is_array($proxies) ? $proxies : array($proxies);
 
 			$this->ip_address = in_array($_SERVER['REMOTE_ADDR'], $proxies) ?

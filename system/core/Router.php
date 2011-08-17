@@ -281,65 +281,13 @@ class CI_Router extends CI_RouterBase {
 		$this->default_controller = (isset($this->routes['default_controller']) &&
 			$this->routes['default_controller'] != '') ? strtolower($this->routes['default_controller']) : FALSE;
 
-		// Are query strings enabled in the config file? Normally CI doesn't utilize query strings
-		// since URI segments are more search-engine friendly, but they can optionally be used.
-		// If this feature is enabled, we will gather the directory/class/method a little differently
-		$uri =& $this->CI->uri;
-		$config =& $this->CI->config;
-		$ctl_trigger = $config->item('controller_trigger');
-		if ($config->item('enable_query_strings') === TRUE && isset($_GET[$ctl_trigger])) {
-			$segments = array();
-
-			// Add directory segment if provided
-			$dir_trigger = $config->item('directory_trigger');
-			if (isset($_GET[$dir_trigger])) {
-				$segments[] = trim($uri->_filter_uri($_GET[$dir_trigger]));
-			}
-
-			// Add controller segment - this was qualified above
-			$class = trim($uri->_filter_uri($_GET[$ctl_trigger]));
-			$segments[] = $class;
-
-			// Add function segment if provided
-			$fun_trigger = $config->item('function_trigger');
-			if (isset($_GET[$fun_trigger])) {
-				$segments[] = trim($uri->_filter_uri($_GET[$fun_trigger]));
-			}
-
-			// Determine if segments point to a valid route
-			$route = $this->validate_route($segments);
-			if ($route === FALSE) {
-				// Invalid request - show a 404
-				$this->CI->show_404($class);
-			}
-
-			// Set route stack and apply overrides or clean directory and class
-			$this->route_stack = $route;
-			if (isset($overrides['directory'])) {
-				$this->set_directory($overrides['directory']);
-			}
-			else {
-				$this->set_directory($route[self::SEG_SUBDIR]);
-			}
-			if (isset($overrides['controller'])) {
-				$this->set_class($overrides['controller']);
-			}
-			else {
-				$this->set_class($route[self::SEG_CLASS]);
-			}
-			if (isset($overrides['function'])) {
-				$this->set_method($overrides['function']);
-			}
-			return;
-		}
-
 		// Fetch the complete URI string and turn the segment array into a URI string
-		$segments = $uri->_fetch_uri_string();
+		$segments = $this->CI->uri->_load_uri();
 		$uri = implode('/', $segments);
 
 		// Is there a literal route match? If so we're done
 		if (isset($this->routes[$uri])) {
-			return $this->_set_request(explode('/', $this->routes[$uri]), $overrides);
+			return $this->_set_route(explode('/', $this->routes[$uri]), $overrides);
 		}
 
 		// Loop through the route array looking for wild-cards
@@ -354,13 +302,13 @@ class CI_Router extends CI_RouterBase {
 					$val = preg_replace('#^'.$key.'$#', $val, $uri);
 				}
 
-				return $this->_set_request(explode('/', $val), $overrides);
+				return $this->_set_route(explode('/', $val), $overrides);
 			}
 		}
 
 		// If we got this far it means we didn't encounter a
 		// matching route so we'll set the site default route
-		$this->_set_request($segments, $overrides);
+		$this->_set_route($segments, $overrides);
 	}
 
 	/**
@@ -374,7 +322,7 @@ class CI_Router extends CI_RouterBase {
 	 * @param	array	routing	overrides
 	 * @return	void
 	 */
-	protected function _set_request($route, array $overrides) {
+	protected function _set_route($route, array $overrides) {
 		// Determine if segments point to a valid route
 		$route = $this->validate_route($route);
 		if ($route === FALSE) {
@@ -408,10 +356,7 @@ class CI_Router extends CI_RouterBase {
 
 		// Update our "routed" segment array to contain the segments without the path or directory.
 		// Note: If there is no custom routing, this array will be identical to URI->segments
-		$this->CI->uri->_set_rsegments(array_slice($route, self::SEG_CLASS));
-
-		// Re-index the segment arrays so that they start with 1 rather than 0
-		$this->CI->uri->_reindex_segments();
+		$this->CI->uri->_routed(array_slice($route, self::SEG_CLASS));
 	}
 
 	/**
@@ -422,7 +367,7 @@ class CI_Router extends CI_RouterBase {
 	 */
 	protected function _default_segments() {
 		// Check for default controller
-		if ($this->default_controller === FALSE) {
+		if (empty($this->default_controller)) {
 			// Return empty array
 			return array();
 		}

@@ -54,10 +54,8 @@ class CI_LoaderBase {
  */
 class CI_RouterBase {
 	// URI methods
-	protected function _fetch_uri_string() { }
-	protected function _filter_uri($str) { }
-	protected function _set_rsegments(array $rsegments) { }
-	protected function _reindex_segments() { }
+	protected function _load_uri() { }
+	protected function _routed(array $rsegments) { }
 	// Router method
 	protected function _set_routing() { }
 }
@@ -93,7 +91,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 		// Define a custom error handler so we can log PHP errors
 		set_error_handler(array($this, '_exception_handler'));
 
-		if ( ! $this->is_php('5.3')) {
+		if (!$this->is_php('5.3')) {
 			@set_magic_quotes_runtime(0); // Kill magic quotes
 		}
 
@@ -188,7 +186,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 
 			// Instantiate object and assign to static instance
 			self::$_ci_instance = new $class();
-			self::$_ci_instance->init($config, $autoload);
+			self::$_ci_instance->_init($config, $autoload);
 		}
 
 		return self::$_ci_instance;
@@ -698,6 +696,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 *
 	 * @param	string	file name
 	 * @param	string	array name
+     * @param   array   reference to array for extra variables (or FALSE to skip collection)
 	 * @return	mixed	config array on success (or TRUE if no name), file path string on invalid contents,
 	 *					or FALSE if no matching file found
 	 */
@@ -816,7 +815,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 *
 	 * @param	string	object type ('core', 'library', 'helper', 'model', 'controller')
 	 * @param	string	class name
-	 * @param	string	object name
+	 * @param	string	object name (or FALSE to prevent attachment)
 	 * @param	array	constructor parameters
 	 * @param	string	subdirectory
 	 * @param	string	routed path for controllers
@@ -998,6 +997,7 @@ class CodeIgniter extends CI_LoaderBase, CI_RouterBase {
 	 * @param	string	subdirectory
 	 * @param	string	class prefix
 	 * @param	string	class name
+     * @param   boolean FALSE to skip class_exists test
 	 * @return	mixed	class name with prefix if found, otherwise FALSE
 	 */
 	protected function _include(array &$paths, $dir, $prefix, $class, $test = TRUE) {
@@ -1223,18 +1223,6 @@ function log_message($level, $message, $php_error = FALSE) {
 	$CI =& CodeIgniter::instance();
 	$CI->log_message($level, $message, $php_error);
 }
-
-/**
- * System Initialization
- *
- * Loads the base classes and executes the request.
- *
- * @package		CodeIgniter
- * @subpackage	codeigniter
- * @category	Front-controller
- * @author		ExpressionEngine Dev Team
- * @link		http://codeigniter.com/user_guide/
- */
 
 // Load and run the application
 $CI =& CodeIgniter::instance($assign_to_config);
