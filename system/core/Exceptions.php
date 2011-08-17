@@ -91,23 +91,14 @@ class CI_Exceptions {
 	 */
 	function show_404($page = '', $log_error = TRUE)
 	{
-		$heading = '404 Page Not Found';
-		$message = 'The page you requested was not found.';
-
 		// By default we log this, but allow a dev to skip it
 		if ($log_error)
 		{
 			log_message('error', '404 Page Not Found --> '.$page);
 		}
 
-		// Check Router for a 404 override
-		$CI =& CodeIgniter::instance();
-		if ($CI->router->_override_404() === FALSE)
-		{
-			// Just display the generic 404
-			echo $this->show_error($heading, $message, 'error_404', 404);
-		}
-		exit;
+		// Call show_error for the 404 - it will exit
+		$this->show_error('404 Page Not Found', 'The page you requested was not found.', 'error_404', 404);
 	}
 
 	// --------------------------------------------------------------------
@@ -115,31 +106,64 @@ class CI_Exceptions {
 	/**
 	 * General Error Page
 	 *
-	 * This function takes an error message as input
-	 * (either as a string or an array) and displays
-	 * it using the specified template.
+	 * This function takes an error message as input and passes it to the error
+     * override method if configured, or displays it using the specified template.
+	 * The override method will get the heading and message(s) as its first arguments,
+	 * followed by any trailing segments of the override route. So, if the override
+	 * route was "errclass/method/one/two", the effect would be to call:
+	 *	errclass->method($heading, $message, "one", "two");
+     * 
 	 *
 	 * @access	private
 	 * @param	string	the heading
-	 * @param	string	the message
+	 * @param	mixed	the message string or array of strings
 	 * @param	string	the template name
+     * @param   int     the optional error status code
 	 * @return	string
 	 */
 	function show_error($heading, $message, $template = 'error_general', $status_code = 500)
 	{
+		// Set status header
 		set_status_header($status_code);
 
-		$message = '<p>'.implode('</p><p>', ( ! is_array($message)) ? array($message) : $message).'</p>';
-
+		// Clear any output buffering
 		if (ob_get_level() > $this->ob_level + 1)
 		{
 			ob_end_flush();
 		}
+
+		// Check Router for an error (or 404) override
+		$route = $this->CI->router->get_error_route($status_code == 404);
+		if ($route !== FALSE) {
+			// Insert or append arguments
+			if (count($route) > CI_Router::SEG_ARGS) {
+				// Insert heading and message after path, subdir, class, and method and before other args
+				$route = array_merge(
+					array_slice($route, 0, CI_Router::SEG_ARGS),
+					array($heading, $message),
+					array_slice($route, CI_Router::SEG_ARGS)
+				);
+			}
+			else {
+				// Just append heading and message to the end
+				$route[] = $heading;
+				$route[] = $message;
+			}
+
+			// Load the error Controller and call the method
+			if ($this->CI->load->controller($route)) {
+				// Display the output and exit
+				$this->CI->output->_display();
+				exit;
+			}
+		}
+
+		// If the override didn't exit above, just display the generic error template
 		ob_start();
+		$message = '<p>'.implode('</p><p>', ( ! is_array($message)) ? array($message) : $message).'</p>';
 		include(APPPATH.'errors/'.$template.'.php');
-		$buffer = ob_get_contents();
-		ob_end_clean();
-		return $buffer;
+		echo ob_get_clean();
+		exit;
 	}
 
 	// --------------------------------------------------------------------
@@ -177,7 +201,6 @@ class CI_Exceptions {
 		ob_end_clean();
 		echo $buffer;
 	}
-
 }
 // END Exceptions Class
 

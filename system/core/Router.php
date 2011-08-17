@@ -189,39 +189,48 @@ class CI_Router {
 	 * @param	array	route segments
 	 * @return	mixed	FALSE if route doesn't exist, otherwise array of 4+ segments
 	 */
-	public function validate_route($segments)
+	public function validate_route($route)
 	{
 		// If we don't have any segments, the default will have to do
-		if (count($segments) == 0)
+		if (count($route) == 0)
 		{
-			$segments = $this->_default_segments();
+			$route = $this->_default_segments();
+			if (empty($route)) {
+				// No default - fail
+				return FALSE;
+			}
+		}
+
+		// Explode route if not already segmented
+		if (!is_array($route)) {
+			$route = explode('/', $route);
 		}
 
 		// Search paths for controller
 		foreach ($this->CI->load->get_package_paths() as $path)
 		{
 			// Does the requested controller exist in the base folder?
-			if (file_exists($path.'controllers/'.$segments[0].'.php'))
+			if (file_exists($path.'controllers/'.$route[0].'.php'))
 			{
 				// Found it - append method if missing
-				if ( ! isset($segments[1]))
+				if ( ! isset($route[1]))
 				{
-					$segments[] = 'index';
+					$route[] = 'index';
 				}
 
 				// Prepend path and empty directory and return
-				return array_merge(array($path, ''), $segments);
+				return array_merge(array($path, ''), $route);
 			}
 
 			// Is the controller in a sub-folder?
-			if (is_dir($path.'controllers/'.$segments[0]))
+			if (is_dir($path.'controllers/'.$route[0]))
 			{
 				// Found a sub-folder - is there a controller name?
-				if (isset($segments[1]))
+				if (isset($route[1]))
 				{
 					// Yes - get class and method
-					$class = $segments[1];
-					$method = isset($segments[2]) ? $segments[2] : 'index';
+					$class = $route[1];
+					$method = isset($route[2]) ? $route[2] : 'index';
 				}
 				else
 				{
@@ -240,25 +249,25 @@ class CI_Router {
 				}
 
 				// Does the requested controller exist in the sub-folder?
-				if (file_exists($path.'controllers/'.$segments[0].$class.'.php'))
+				if (file_exists($path.'controllers/'.$route[0].$class.'.php'))
 				{
 					// Found it - assemble segments
-					if ( ! isset($segments[1]))
+					if ( ! isset($route[1]))
 					{
-						$segments[] = $class;
+						$route[] = $class;
 					}
-					if ( ! isset($segments[2]))
+					if ( ! isset($route[2]))
 					{
-						$segments[] = $method;
+						$route[] = $method;
 					}
 					if (isset($default) && count($default) > 0)
 					{
-						$segments = array_merge($segments, $default);
+						$route = array_merge($route, $default);
 					}
 
 					// Prepend path and return
-					array_unshift($segments, $path);
-					return $segments;
+					array_unshift($route, $path);
+					return $route;
 				}
 			}
 		}
@@ -436,61 +445,25 @@ class CI_Router {
 	// --------------------------------------------------------------------
 
 	/**
-	 * Get 404 override
+	 * Get error route
 	 *
-	 * Identifies the 404 override route, if defined, and validates it.
-	 * On success, the 404 override method will get the requested page as its first argument,
-	 * followed by any trailing segments of 404_override. So, if "foo/bar" triggered
-	 * a 404, and 404_override was "my404/method/one/two", the effect would be to call:
-	 *	my404->method("foo/bar", "one", "two");
+	 * Identifies the 404 or error override route, if defined, and validates it.
 	 *
-	 * @param		private
-	 * @param	string	requested page
-	 * @return	boolean	TRUE on success, otherwise FALSE
+	 * @param	boolean	TRUE for 404 route
+	 * @return	mixed	FALSE if route doesn't exist, otherwise array of 4+ segments
 	 */
-	public function _override_404($page)
-	{
+	public function get_error_route($is404 = FALSE) {
+		// Select route
+		$route = ($is404 ? '404' : 'error').'_override';
+
 		// See if 404_override is defined
-		if (empty($this->routes['404_override']))
-		{
+		if (empty($this->routes[$route])) {
 			// No override to apply
 			return FALSE;
 		}
 
-		// Validate override path
-		$segments = $this->validate_route(explode('/', $this->routes['404_override']));
-		if ($segments === FALSE)
-		{
-			// Override not found
-			return FALSE;
-		}
-
-		// Insert or append page name argument
-		if (count($segments) > self::SEG_ARGS)
-		{
-			// Insert $page after path, subdir, class, and method and before other args
-			$segments = array_merge(
-				array_slice($segments, 0, self::SEG_ARGS),
-				array($page),
-				array_slice($segments, self::SEG_ARGS)
-			);
-		}
-		else
-		{
-			// Just append $page to the end
-			$segments[] = $page;
-		}
-
-		// Load the 404 Controller and call the method
-		if ($this->CI->load->controller($segments) == TRUE)
-		{
-			// Display the output and return success
-			$CI->output->_display();
-			return TRUE;
-		}
-
-		// Load or call failed
-		return FALSE;
+		// Return validated override path
+		return $this->validate_route($this->routes[$route]);
 	}
 
 	// --------------------------------------------------------------------
