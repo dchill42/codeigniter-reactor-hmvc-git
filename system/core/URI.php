@@ -332,7 +332,7 @@ class CI_URI extends CI_CoreShare {
 			// permitted_uri_chars will be parsed as a regex pattern
 			if (!preg_match('|^['.str_replace(array('\\-', '\-'), '-',
 			preg_quote($this->permit_chars, '-')).']+$|i', $str)) {
-				$this->CI->show_error('The URI you submitted has disallowed characters.', 400);
+				throw new CI_ShowError('The URI you submitted has disallowed characters.', '', 400);
 			}
 		}
 

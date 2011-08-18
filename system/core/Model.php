@@ -27,11 +27,13 @@ class CI_Model {
 
 	/**
 	 * Constructor
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct() {
-		// Get instance and log init
-		$this->CI =& CodeIgniter::instance();
-		$this->CI->log_message('debug', 'Model Class Initialized');
+	public function __construct(CodeIgniter $CI) {
+		// Attach parent reference
+		$this->CI =& $CI;
+		$CI->log_message('debug', get_class($this).' Model Class Initialized');
 	}
 
 	/**

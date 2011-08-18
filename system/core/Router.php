@@ -82,57 +82,66 @@ class CI_Router extends CI_CoreShare {
 			$route = explode('/', $route);
 		}
 
+		// Prepare case options
+		$name = strtolower($route[0]);
+		$names = array(ucfirst($name), $name);
+
 		// Search paths for controller
 		foreach ($this->CI->get_package_paths() as $path) {
-			// Does the requested controller exist in the base folder?
-			if (file_exists($path.'controllers/'.$route[0].'.php')) {
-				// Found it - append method if missing
-				if (!isset($route[1])) {
-					$route[] = 'index';
-				}
+			// Append subdirectory
+			$file_path = $path.'controllers/';
 
-				// Prepend path and empty directory and return
-				return array_merge(array($path, ''), $route);
-			}
-
-			// Is the controller in a sub-folder?
-			if (is_dir($path.'controllers/'.$route[0])) {
-				// Found a sub-folder - is there a controller name?
-				if (isset($route[1])) {
-					// Yes - get class and method
-					$class = $route[1];
-					$method = isset($route[2]) ? $route[2] : 'index';
-				}
-				else {
-					// Get default controller segments
-					$default = $this->_default_segments();
-					if (empty($default)) {
-						// No default controller to apply - carry on
-						unset($default);
-						continue;
-					}
-
-					// Get class and method
-					$class = array_unshift($default);
-					$method = array_unshift($default);
-				}
-
-				// Does the requested controller exist in the sub-folder?
-				if (file_exists($path.'controllers/'.$route[0].$class.'.php')) {
-					// Found it - assemble segments
+			foreach ($names as $name) {
+				// Does the requested controller exist in the base folder?
+				if (file_exists($file_path.$name.'.php')) {
+					// Found it - append method if missing
 					if (!isset($route[1])) {
-						$route[] = $class;
-					}
-					if (!isset($route[2])) {
-						$route[] = $method;
-					}
-					if (isset($default) && count($default) > 0) {
-						$route = array_merge($route, $default);
+						$route[] = 'index';
 					}
 
-					// Prepend path and return
-					array_unshift($route, $path);
-					return $route;
+					// Prepend path and empty directory and return
+					return array_merge(array($path, ''), $route);
+				}
+
+				// Is the controller in a sub-folder?
+				if (is_dir($file_path.$name)) {
+					// Found a sub-folder - is there a controller name?
+					if (isset($route[1])) {
+						// Yes - get class and method
+						$class = $route[1];
+						$method = isset($route[2]) ? $route[2] : 'index';
+					}
+					else {
+						// Get default controller segments
+						$default = $this->_default_segments();
+						if (empty($default)) {
+							// No default controller to apply - carry on
+							unset($default);
+							continue;
+						}
+
+						// Get class and method
+						$class = array_unshift($default);
+						$method = array_unshift($default);
+					}
+
+					// Does the requested controller exist in the sub-folder?
+					if (file_exists($file_path.$name.$class.'.php')) {
+						// Found it - assemble segments
+						if (!isset($route[1])) {
+							$route[] = $class;
+						}
+						if (!isset($route[2])) {
+							$route[] = $method;
+						}
+						if (isset($default) && count($default) > 0) {
+							$route = array_merge($route, $default);
+						}
+
+						// Prepend path and return
+						array_unshift($route, $path);
+						return $route;
+					}
 				}
 			}
 		}
@@ -287,7 +296,7 @@ class CI_Router extends CI_CoreShare {
 
 		// Is there a literal route match? If so we're done
 		if (isset($this->routes[$uri])) {
-			return $this->_set_route(explode('/', $this->routes[$uri]), $overrides);
+			return $this->_set_route($this->routes[$uri], $overrides);
 		}
 
 		// Loop through the route array looking for wild-cards
@@ -302,7 +311,7 @@ class CI_Router extends CI_CoreShare {
 					$val = preg_replace('#^'.$key.'$#', $val, $uri);
 				}
 
-				return $this->_set_route(explode('/', $val), $overrides);
+				return $this->_set_route($val, $overrides);
 			}
 		}
 
@@ -323,12 +332,16 @@ class CI_Router extends CI_CoreShare {
 	 * @return	void
 	 */
 	protected function _set_route($route, array $overrides) {
-		// Determine if segments point to a valid route
+		// Save original request in case of 404
+		$uri = is_array($route) ? implode('/', $route) : $route;
+
+		// Determine if route is valid
 		$route = $this->validate_route($route);
 		if ($route === FALSE) {
 			// Invalid request - show a 404
 			$page = isset($route[0]) ? $route[0] : '';
-			$this->CI->show_404($page);
+			throw new CI_ShowError('The page you requested was not found.', '404 Page Not Found', 404,
+				'404 Page Not Found --> '.$uri, 'error_404');
 		}
 
 		// Set route stack and process

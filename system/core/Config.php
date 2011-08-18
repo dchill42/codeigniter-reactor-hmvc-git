@@ -65,6 +65,7 @@ class CI_Config {
 	/**
 	 * Load Config File
 	 *
+	 * @throws	CI_ShowError	if config file doesn't exist or is invalid
 	 * @param	string	the config file name
 	 * @param	boolean	if configuration values should be loaded into their own section
 	 * @param	boolean	TRUE if errors should just return FALSE, otherwise an error message is displayed
@@ -85,14 +86,14 @@ class CI_Config {
 			if ($fail_gracefully) {
 				return FALSE;
 			}
-			$this->CI->show_error('The configuration file '.$file.'.php does not exist.');
+			throw new CI_ShowError('The configuration file '.$file.'.php does not exist.');
 		}
 		else if (is_string($config)) {
 			$this->CI->log_message('debug', 'Invalid config file: '.$config);
 			if ($fail_gracefully === TRUE) {
 				return FALSE;
 			}
-			$this->CI->show_error('Your '.$config.' file does not appear to contain a valid configuration array.');
+			throw new CI_ShowError('Your '.$config.' file does not appear to contain a valid configuration array.');
 		}
 
 		// Check for sections

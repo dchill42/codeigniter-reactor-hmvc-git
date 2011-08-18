@@ -26,7 +26,7 @@
  * @link		http://codeigniter.com/user_guide/libraries/benchmark.html
  */
 class CI_Benchmark {
-	var $marker = array();
+	public $marker = array();
 
 	/**
 	 * Constructor

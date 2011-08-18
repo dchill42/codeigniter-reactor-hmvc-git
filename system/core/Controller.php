@@ -29,10 +29,26 @@ class CI_Controller {
 
 	/**
 	 * Constructor
+	 *
+	 * @param	object	parent reference
 	 */
-	public function __construct() {
-		$this->CI =& CodeIgniter::get_instance();
-		$this->CI->log_message('debug', 'Controller Class Initialized');
+	public function __construct(CodeIgniter $CI) {
+		// Attach parent reference
+		$this->CI =& $CI;
+		$CI->log_message('debug', get_class($this).' Controller Class Initialized');
+	}
+
+	/**
+	 * End operation
+	 *
+	 * This function exits Controller operation and goes directly to
+	 * the final hooks and output display in CodeIgniter.
+	 *
+	 * @return void
+	 */
+	public function end_run() {
+		// Just throw the exception - CodeIgniter will catch it
+		throw new CI_EndRun();
 	}
 
 	/**

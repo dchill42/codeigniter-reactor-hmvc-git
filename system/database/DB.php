@@ -30,10 +30,10 @@ function &DB($params = '', $active_record_override = NULL) {
 			// Is the config file in the environment folder?
 			$db = CodeIgniter::get_config_ext('database.php', 'db', $args);
 			if ($db === FALSE) {
-				$CI->show_error('The configuration file database.php does not exist.');
+				throw new CI_ShowError('The configuration file database.php does not exist.');
 			}
 			else if (!is_array($db) || empty($db)) {
-				$CI->show_error('No database connection settings were found in the database config file.');
+				throw new CI_ShowError('No database connection settings were found in the database config file.');
 			}
 
 			if ($params != '') {
@@ -44,7 +44,7 @@ function &DB($params = '', $active_record_override = NULL) {
 			}
 
 			if ( ! isset($active_group) || ! isset($db[$active_group])) {
-				$CI->show_error('You have specified an invalid database connection group.');
+				throw new CI_ShowError('You have specified an invalid database connection group.');
 			}
 
 			$params = $db[$active_group];
@@ -55,7 +55,7 @@ function &DB($params = '', $active_record_override = NULL) {
 			// source name in the first parameter. DSNs must have this prototype:
 			// $dsn = 'driver://username:password@hostname/database';
 			if (($dns = @parse_url($params)) === FALSE) {
-				$CI->show_error('Invalid DB Connection String');
+				throw new CI_ShowError('Invalid DB Connection String');
 			}
 
 			$params = array(
@@ -87,7 +87,7 @@ function &DB($params = '', $active_record_override = NULL) {
 
 	// No DB specified yet? Beat them senseless...
 	if ( ! isset($params['dbdriver']) OR $params['dbdriver'] == '') {
-		$CI->show_error('You have not selected a database type to connect to.');
+		throw new CI_ShowError('You have not selected a database type to connect to.');
 	}
 
 	// Load the DB classes. Note: Since the active record class is optional

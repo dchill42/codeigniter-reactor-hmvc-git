@@ -57,8 +57,7 @@ class CI_Driver_Library extends CI_LoaderBase {
 		if ( ! in_array($driver_name, array_map('strtolower', $this->valid_drivers))) {
 			// The requested driver isn't valid!
 			$msg = 'Invalid driver requested: '.$driver_class;
-			$CI->log_message('error', $msg);
-			$CI->show_error($msg);
+			throw new CI_ShowError($msg, '', 0, $msg);
 		}
 
 		// Check if driver is already defined
@@ -69,8 +68,7 @@ class CI_Driver_Library extends CI_LoaderBase {
 			// See if the driver class was found
 			if ( ! class_exists($driver_class)) {
 				$msg = 'Unable to load the requested driver: '.$driver_class;
-				$CI->log_message('error', $msg);
-				$CI->show_error($msg);
+				throw new CI_ShowError($msg, '', 0, $msg);
 			}
 		}
 

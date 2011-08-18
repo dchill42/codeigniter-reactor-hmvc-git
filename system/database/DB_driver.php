@@ -939,8 +939,7 @@ class CI_DB_driver {
 			}
 		}
 
-		echo $this->CI->show_error($heading, $message, 'error_db');
-		exit;
+		throw new CI_ShowError($message, $heading, 0, '', 'error_db');
 	}
 
 	/**

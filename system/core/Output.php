@@ -199,7 +199,7 @@ class CI_Output extends CI_CoreShare {
 
 		// Validate code
 		if ($code == '' || ! is_numeric($code)) {
-			$this->CI->show_error('Status codes must be numeric', 500);
+			throw new CI_ShowError('Status codes must be numeric');
 		}
 
 		// Load text if necessary
@@ -208,8 +208,8 @@ class CI_Output extends CI_CoreShare {
 				$text = $stati[$code];
 			}
 			else {
-				$this->CI->show_error('No status text available. Please check your status code number or '.
-					'supply your own message text.', 500);
+				throw new CI_ShowError('No status text available. Please check your status code number or '.
+					'supply your own message text.');
 			}
 		}
 

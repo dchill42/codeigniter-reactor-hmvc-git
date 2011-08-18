@@ -18,6 +18,99 @@ define('CI_VERSION', '2.0.2');
 define('CI_CORE', FALSE);
 
 /**
+ * CodeIgniter End Run Exception
+ *
+ * This PHP Exception bypasses any remaining Controller code, returning control to
+ * CodeIgniter, which will display any output and exit.
+ *
+ * @package		CodeIgniter
+ * @subpackage	Libraries
+ * @category	Libraries
+ * @author		ExpressionEngine Dev Team
+ */
+class CI_EndRun extends Exception { }
+
+/**
+ * CodeIgniter Show Error exception
+ *
+ * This exception terminates execution and triggers error page display instead
+ *
+ * @package		CodeIgniter
+ * @subpackage	Libraries
+ * @category	Libraries
+ * @author		ExpressionEngine Dev Team
+ */
+class CI_ShowError extends Exception {
+	protected $heading;
+	protected $template;
+	protected $log_msg;
+
+	/**
+	 * Constructor
+	 *
+	 * @param	string	error message
+	 * @param	string	error page heading
+	 * @param	int		error status code
+	 * @param	string	error log message
+	 * @param	string	error template name
+	 */
+	public function __construct($message, $heading = '', $status_code = 0, $log_msg = '', $template = '') {
+		// Call Exception constructor
+		parent::__construct($message, empty($status_code) ? 500 : $status_code);
+
+		// Set properties
+		$this->heading = empty($heading) ? 'An Error Was Encountered' : $heading;
+		$this->template = empty($template) ? 'error_general' : $template;
+		$this->log_msg = $log_msg;
+	}
+
+	/**
+	 * Add error message
+	 *
+	 * Adds another message to the exception
+	 * 
+	 * @param	string	error message
+	 * @return	void
+	 */
+	public function addMessage($message) {
+		// Force message to array
+		if (!is_array($this->message)) {
+			$this->message = array($this->message);
+		}
+		
+		// Append new message
+		$this->message[] = $message;
+	}
+
+	/**
+	 * Get error heading
+	 *
+	 * @return	string	error page heading
+	 */
+	public function getHeading() {
+		return $this->heading;
+	}
+
+	/**
+	 * Get error template
+	 *
+	 * @return	string	error template name
+	 */
+	public function getTemplate() {
+		return $this->template;
+	}
+
+	/**
+	 * Get error log message
+	 *
+	 * @return	string	error log message
+	 */
+	public function getLogMsg() {
+		return $this->log_msg;
+	}
+}
+
+/**
  * CodeIgniter Core Sharing Base Class
  *
  * This base class permits access to protected methods of other core classes
@@ -29,6 +122,8 @@ define('CI_CORE', FALSE);
  * @author		ExpressionEngine Dev Team
  */
 class CI_CoreShare {
+	const CLASSES = array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output', 'CI_Exceptions');
+
 	/**
 	 * Call protected core method
 	 *
@@ -43,7 +138,7 @@ class CI_CoreShare {
 	 */
 	protected final function _call_core(CI_CoreShare $object, $method) {
 		// Restrict usage to specific classes
-		foreach (array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output') as $class) {
+		foreach (self::CLASSES as $class) {
 			if (is_a($this, $class)) {
 				// Call protected method of other Core object
 				return call_user_func_array(array($object, $method), array_slice(func_get_args(), 2));
@@ -51,22 +146,9 @@ class CI_CoreShare {
 		}
 
 		// If we got here, someone is trying to hijack the core!
-		CodeIgniter::instance()->show_error('Class '.get_class($this).' is not an authorized core sharing class');
+		throw new CI_ShowError('Class '.get_class($this).' is not an authorized core sharing class');
 	}
 }
-
-/**
- * CodeIgniter End Run Exception
- *
- * This PHP Exception bypasses any remaining Controller code, returning control to
- * CodeIgniter, which will display any output and exit.
- *
- * @package		CodeIgniter
- * @subpackage	Libraries
- * @category	Libraries
- * @author		ExpressionEngine Dev Team
- */
-class CI_EndRun extends Exception { }
 
 /**
  * CodeIgniter Application Core Class
@@ -95,8 +177,8 @@ class CodeIgniter extends CI_CoreShare {
 	 * which enforces the singleton behavior of the object.
 	 */
 	protected function __construct() {
-		// Define a custom error handler so we can log PHP errors
-		set_error_handler(array($this, '_exception_handler'));
+		// Define a custom error handler so we can log PHP errors (except E_STRICT)
+		set_error_handler(array($this, '_exception_handler'), E_ALL);
 
 		if (!$this->is_php('5.3')) {
 			@set_magic_quotes_runtime(0); // Kill magic quotes
@@ -121,12 +203,6 @@ class CodeIgniter extends CI_CoreShare {
 		// Close the DB connection if one exists
 		if (isset($this->db)) {
 			$this->db->close();
-		}
-
-		// Check for failed load of routed Controller
-		if (isset($this->routed) && is_string($this->routed)) {
-			$this->show_error('Unable to load your default controller: '.$this->routed.
-				'. Please make sure the controller specified in your Routes.php file is valid.');
 		}
 	}
 
@@ -188,47 +264,13 @@ class CodeIgniter extends CI_CoreShare {
 
 			// Instantiate object and assign to static instance
 			self::$_ci_instance = new $class();
-			self::$_ci_instance->_init($config, $autoload);
+
+			// Save config and autoload for run()
+			$self::$_ci_instance->_ci_config =& $config;
+			$self::$_ci_instance->_ci_autoload =& $autoload;
 		}
 
 		return self::$_ci_instance;
-	}
-
-	/**
-	 * Initialize configuration
-	 *
-	 * This function finishes bootstrapping the CodeIgniter object by loading
-	 * the Config object and installing the primary configuration.
-	 *
-	 * @param	array	config array
-	 * @param	array	autoload array
-	 * @return	void
-	 */
-	protected function _init($config, $autoload) {
-		// Establish configured subclass prefix
-		if (isset($config['subclass_prefix'])) {
-			$this->_ci_subclass_prefix = $config['subclass_prefix'];
-		}
-
-		// Autoload package paths so they can be searched
-		if (isset($autoload['packages'])) {
-			foreach ($autoload['packages'] as $package_path) {
-				$this->add_package_path($package_path);
-			}
-		}
-
-		// Instantiate the config class and initialize
-		$this->_load('core', 'Config', '', $config);
-
-		// Load any custom config files
-		if (isset($autoload['config'])) {
-			foreach ($autoload['config'] as $val) {
-				$this->config->load($val);
-			}
-		}
-
-		// Save remaining items for run()
-		$this->_ci_autoload =& $autoload;
 	}
 
 	/**
@@ -238,63 +280,105 @@ class CodeIgniter extends CI_CoreShare {
 	 * @return	void
 	 */
 	public function run($routing) {
-		// Check if Benchmark is enabled
-		if ($this->config->item('enable_benchmarks')) {
-			// Load Benchmark
-			$this->_load('core', 'Benchmark');
-
-			// Start the timer... tick tock tick tock...
-			$this->benchmark->mark('total_execution_time_start');
-			$this->benchmark->mark('loading_time:_base_classes_start');
-		}
-
-		// Check if Hooks is enabled and needed
-		if ($this->config->item('enable_hooks')) {
-			// Grab the "hooks" definition file.
-			$hooks = self::get_config('hooks.php', 'hook');
-			if (is_array($hooks) && count($hooks) > 0) {
-				// Load hooks
-				$this->_load('core', 'Hooks', '', $hooks);
-
-				// Call pre_system hook
-				$this->_call_core($this->hooks, '_call_hook', 'pre_system');
+		// Catch any ShowError exceptions along the way
+		try {
+			// Get config from instance()
+			if (isset($this->_ci_config)) {
+				$config = $this->_ci_config;
+				unset($this->_ci_config);
 			}
-		}
+			else {
+				$config = array();
+			}
 
-		// Load Loader, Output, URI, and Router
-		// Order is important here because Router, which directly depends on URI,
-		// may throw an error, which will require Output to display, during which
-		// process Output may need Loader to load Profiler
-		$this->_load('core', 'Loader', 'load');
-		$this->_load('core', 'Output');			// Output depends on Loader
-		$this->_load('core', 'URI');
-		$this->_load('core', 'Router');			// Router depends on URI and Output
-
-		// Set routing with any overrides from index.php
-		$this->_call_core($this->router, '_set_routing', $routing);
-
-		// Check for cache override or failed cache display
-		// If not overridden, and a valid cache exists, we're done
-		if ($this->_call_hook('cache_override') === TRUE ||
-		$this->_call_core($this->output, '_display_cache') == FALSE) {
-			// Load remaining core classes
-			$this->_load('core', 'Security');
-			$this->_load('core', 'Utf8');
-			$this->_load('core', 'Input');			// Input depends on Security and UTF-8
-			$this->_load('core', 'Lang');
-
-			// Autoload any remaining resources
+			// Get autoload from instance()
 			if (isset($this->_ci_autoload)) {
-				$this->_call_core($this->load, '_autoloader', $this->_ci_autoload);
+				$autoload = $this->_ci_autoload;
 				unset($this->_ci_autoload);
 			}
-
-			if (isset($this->benchmark)) {
-				$this->benchmark->mark('loading_time:_base_classes_end');
+			else {
+				$autoload = array();
 			}
 
-			// Load and run the controller
-			$this->run_controller();
+			// Establish configured subclass prefix
+			if (isset($config['subclass_prefix'])) {
+				$this->_ci_subclass_prefix = $config['subclass_prefix'];
+			}
+
+			// Autoload package paths so they can be searched
+			if (isset($autoload['packages'])) {
+				foreach ($autoload['packages'] as $package_path) {
+					$this->add_package_path($package_path);
+				}
+			}
+
+			// Check if Benchmark is enabled
+			if ($this->config->item('enable_benchmarks')) {
+				// Load Benchmark
+				$this->_load('core', 'Benchmark');
+
+				// Start the timer... tick tock tick tock...
+				$this->benchmark->mark('total_execution_time_start');
+				$this->benchmark->mark('loading_time:_base_classes_start');
+			}
+
+			// Check if Hooks is enabled and needed
+			if ($this->config->item('enable_hooks')) {
+				// Grab the "hooks" definition file.
+				$hooks = self::get_config('hooks.php', 'hook');
+				if (is_array($hooks) && count($hooks) > 0) {
+					// Load hooks
+					$this->_load('core', 'Hooks', '', $hooks);
+
+					// Call pre_system hook
+					$this->_call_core($this->hooks, '_call_hook', 'pre_system');
+				}
+			}
+
+			// Load Config and any autoloaded config files
+			$this->_load('core', 'Config', '', $config);
+			if (isset($autoload['config'])) {
+				foreach ($autoload['config'] as $val) {
+					$this->config->load($val);
+				}
+			}
+
+			// Load Loader, Output, URI, and Router
+			// Order is important here because Router, which directly depends on URI,
+			// may throw an error, which will require Output to display, during which
+			// process Output may need Loader to load Profiler
+			$this->_load('core', 'Loader', 'load');
+			$this->_load('core', 'Output');			// Output depends on Loader
+			$this->_load('core', 'URI');
+			$this->_load('core', 'Router');			// Router depends on URI and Output
+
+			// Set routing with any overrides from index.php
+			$this->_call_core($this->router, '_set_routing', $routing);
+
+			// Check for cache override or failed cache display
+			// If not overridden, and a valid cache exists, we're done
+			if ((isset($this->hooks) && $this->_call_core($this->hooks, '_call_hook', 'cache_override')) ||
+			$this->_call_core($this->output, '_display_cache') == FALSE) {
+				// Load remaining core classes
+				$this->_load('core', 'Security');
+				$this->_load('core', 'Utf8');
+				$this->_load('core', 'Input');			// Input depends on Security and UTF-8
+				$this->_load('core', 'Lang');
+
+				// Autoload any remaining resources
+				$this->_call_core($this->load, '_autoloader', $autoload);
+
+				if (isset($this->benchmark)) {
+					$this->benchmark->mark('loading_time:_base_classes_end');
+				}
+
+				// Load and run the controller
+				$this->run_controller();
+			}
+		}
+		catch (CI_ShowError $ex) {
+			// Display error
+			$this->_display_error($ex);
 		}
 	}
 
@@ -305,7 +389,9 @@ class CodeIgniter extends CI_CoreShare {
 	 */
 	protected function run_controller() {
 		// Call the "pre_controller" hook
-		$this->_call_hook('pre_controller');
+		if (isset($this->hooks)) {
+			$this->_call_core($this->hooks, '_call_hook', 'pre_controller');
+		}
 
 		// Get the parsed route and extract segments
 		$route = $this->router->fetch_route();
@@ -319,22 +405,35 @@ class CodeIgniter extends CI_CoreShare {
 			$this->benchmark->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 		}
 
-		// Load the controller object and set special "routed" reference
-		$this->_load('controller', $class, '', NULL, $subdir, $path);
-		$this->routed =& $this->$class;
+		// Catch ShowError and add routes message on fail
+		try {
+			// Load the controller object and set special "routed" reference
+			$this->_load('controller', $class, '', NULL, $subdir, $path);
+			$name = strtolower($class);
+			$this->routed =& $this->$name;
+		}
+		catch (CI_ShowError $ex) {
+			// Add default controller message and rethrow
+			$ex->addMessage('Unable to load your default controller: '.$class.
+				'. Please make sure the controller specified in your config/routes.php file is valid.');
+			throw $ex;
+		}
 
 		// Call the "post_controller_constructor" hook
-		$this->_call_hook('post_controller_constructor');
+		if (isset($this->hooks)) {
+			$this->_call_core($this->hooks, '_call_hook', 'post_controller_constructor');
+		}
 
 		// Call the requested method with remaining route segments as arguments
 		try {
-			if ($this->call_controller($class, $method, $route) == FALSE) {
+			if ($this->_call_controller($class, $method, $route) == FALSE) {
 				// Both _remap and $method failed - go to 404
-				$this->show_404($class.'/'.$method);
+				throw new CI_ShowError('The page you requested was not found.', '404 Page Not Found', 404,
+					'Page Not Callable --> '.$class.'/'.$method, 'error_404');
 			}
 		}
 		catch (CI_EndRun $ex) {
-			// Nothing to do here but catch and allow the rest of run_controller() execute
+			// Nothing to do here but catch and allow the rest of run_controller() to execute
 		}
 
 		// Mark a benchmark end point
@@ -359,44 +458,6 @@ class CodeIgniter extends CI_CoreShare {
 			// Just call display
 			$this->_call_core($this->output, '_display');
 		}
-	}
-
-	/**
-	 * Call a controller method
-	 *
-	 * Requires that controller already be loaded, validates method name, and calls
-	 * _remap if available.
-	 *
-	 * @param	string	class name
-	 * @param	string	method
-	 * @param	array	arguments
-	 * @param	string	optional object name
-	 * @return	boolean	TRUE on success, otherwise FALSE
-	 */
-	public function call_controller($class, $method, array $args = array(), $obj_name = '') {
-		// Default name if not provided
-		if (empty($obj_name)) {
-			$obj_name = strtolower($class);
-		}
-
-		// Class must be loaded, and method cannot start with underscore, nor be a member of the base class
-		if (isset($this->$obj_name) && strncmp($method, '_', 1) != 0 &&
-		!in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))) {
-			// Check for _remap
-			if ($this->is_callable($this->$obj_name, '_remap')) {
-				// Call _remap
-				$this->$obj_name->_remap($method, $args);
-				return TRUE;
-			}
-			else if ($this->is_callable($this->$obj_name, $method)) {
-				// Call method
-				call_user_func_array(array(&$this->$obj_name, $method), $args);
-				return TRUE;
-			}
-		}
-
-		// Neither _remap nor method could be called
-		return FALSE;
 	}
 
 	/**
@@ -501,38 +562,13 @@ class CodeIgniter extends CI_CoreShare {
 	 * This function will send the error page directly to the browser and exit.
 	 *
 	 * @param	string	error message
-	 * @param	int	status code
+	 * @param	int		status code
 	 * @param	string	heading
 	 * @return	void
 	 */
-	public function show_error($message, $status_code = 500, $heading = 'An Error Was Encountered') {
-		// Ensure Exceptions is loaded
-		if (!isset($this->exceptions)) {
-			$this->_load('core', 'Exceptions');
-		}
-
-		// Call show_error, which will exit
-		$this->exceptions->show_error($heading, $message, 'error_general', $status_code);
-	}
-
-	/**
-	 * 404 Page Handler
-	 *
-	 * This function is similar to the show_error() function above
-	 * However, instead of the standard error template it displays 404 errors.
-	 *
-	 * @param	string	page URL
-	 * @param	boolean	FALSE to skip logging
-	 * @return	void
-	 */
-	public function show_404($page = '', $log_error = TRUE) {
-		// Ensure Exceptions is loaded
-		if (!isset($this->exceptions)) {
-			$this->_load('core', 'Exceptions');
-		}
-
-		// Call show_404, which will exit
-		$this->exceptions->show_404($page, $log_error);
+	public function show_error($message, $status_code = 0, $heading = '') {
+		// Just throw the error - CodeIgniter will catch it
+		throw new CI_ShowError($message, $heading, $status_code);
 	}
 
 	/**
@@ -552,20 +588,26 @@ class CodeIgniter extends CI_CoreShare {
 			return;
 		}
 
-		// Ensure Log is loaded
-		if (!isset($this->log)) {
-			$this->_load('library', 'Log');
-		}
+		try {
+			// Ensure Log is loaded
+			if (!isset($this->log)) {
+				$this->_load('library', 'Log');
+			}
 
-		// Write log message
-		$this->log->write_log($level, $message, $php_error);
+			// Write log message
+			$this->log->write_log($level, $message, $php_error);
+		}
+		catch (CI_ShowError $ex) {
+			// Don't halt everything over a log message. If Log couldn't be loaded, something
+			// else is likely to blow up as well, which will display an error. Plus, this
+			// scenario is entirely unlikely to begin with.
+		}
 	}
 
 	/**
 	 * Remove Invisible Characters
 	 *
-	 * This prevents sandwiching null characters
-	 * between ascii characters, like Java\0script.
+	 * This prevents sandwiching null characters between ascii characters, like Java\0script.
 	 *
 	 * @access	public
 	 * @param	string
@@ -773,41 +815,111 @@ class CodeIgniter extends CI_CoreShare {
 	/**
 	 * Exception Handler
 	 *
-	 * This is the custom exception handler that is declaired in the constructor.
-	 * The main reason we use this is to permit PHP errors to be logged in our
-	 * own log files since the user may not have access to server logs. Since
-	 * this function effectively intercepts PHP errors, however, we also need
-	 * to display errors based on the current error_reporting level.
-	 * We do that with the use of a PHP error template.
+	 * This is the custom exception handler that is declaired in the CodeIgniter constructor.
+	 * The main reason we use this is to permit PHP errors to be logged in our own log files
+	 * since the user may not have access to server logs. Since this function effectively
+	 * intercepts PHP errors, however, we also need to display errors based on the current
+	 * error_reporting level. We do that with the use of a PHP error template.
 	 *
 	 * @access	private
 	 * @return	void
 	 */
-	public function _exception_handler($severity, $message, $filepath, $line) {
-		 // We don't bother with "strict" notices since they tend to fill up
-		 // the log file with excess information that isn't normally very helpful.
-		 // For example, if you are running PHP 5 and you use version 4 style
-		 // class functions (without prefixes like "public", "private", etc.)
-		 // you'll get notices telling you that these have been deprecated.
-		if ($severity == E_STRICT) {
+	public function _exception_handler($errno, $errstr, $errfile, $errline) {
+		// Should we display the error? We'll get the current error_reporting
+		// level and add its bits with the severity bits to find out.
+		if (($errno & error_reporting()) != $errno) {
 			return;
 		}
 
-		// Ensure the exception class is loaded
-		if (!isset($this->exceptions)) {
-			$this->_load('core', 'Exceptions');
+		// Convert severity to text, if possible
+		$severity = isset(self::LEVELS[$errno]) ? self::LEVELS[$errno] : $errno;
+
+		// Define log message
+		$log_msg = 'Severity: '.$severity.'  --> '.$errstr.' '.$errfile.' '.$errline;
+
+		// Assemble messages
+		$messages = array('Severity: '.$severity, 'Message: '.$errno, 'Filename: '.$errfile,
+			'Line Number: '.$errline);
+
+		// Create exception and pass to _display_error()
+		$error = new CI_ShowError($messages, 'A PHP Error Was Encountered', 500, $log_msg, 'error_php');
+		$this->_display_error($error);
+	}
+
+	/**
+	 * Error display handler
+	 *
+	 * This function lets us invoke the exception class and display errors.
+	 * It will send the error page directly to the browser and exit.
+	 *
+	 * @param	object	ShowError exception
+	 * @return	void
+	 */
+	protected function _display_error(CI_ShowError $error) {
+		try {
+			// Ensure Exceptions is loaded
+			if (!isset($this->exceptions)) {
+				$this->_load('core', 'Exceptions', '', $this->_ci_ob_level);
+			}
+
+			// Call show_error
+			$this->_call_core($this->exceptions, '_show_error', $error);
+		}
+		catch (CI_ShowError $ex) {
+			// Load failed - dump raw HTML output
+			$message = $error->getMessage();
+			if (is_array($message)) {
+				$message = implode('</p><p>', $message);
+			}
+			$more = $ex->getMessage();
+			if (is_array($more)) {
+				$message .= '</p><p>'.implode('</p><p>', $more);
+			}
+			else {
+				$message .= '</p><p>'.$more;
+			}
+			echo '<html><body><h1>'.$header.'</h1><p>'.$message.'</p></body></html>';
+		}
+		exit;
+	}
+
+	/**
+	 * Call a controller method
+	 *
+	 * Requires that controller already be loaded, validates method name, and calls
+	 * _remap if available.
+	 *
+	 * @access	protected
+	 * @param	string	class name
+	 * @param	string	method
+	 * @param	array	arguments
+	 * @param	string	optional object name
+	 * @return	boolean	TRUE on success, otherwise FALSE
+	 */
+	protected function _call_controller($class, $method, array $args = array(), $obj_name = '') {
+		// Default name if not provided
+		if (empty($obj_name)) {
+			$obj_name = strtolower($class);
 		}
 
-		// Should we display the error? We'll get the current error_reporting
-		// level and add its bits with the severity bits to find out.
-		if (($severity & error_reporting()) == $severity) {
-			$this->exceptions->show_php_error($severity, $message, $filepath, $line);
+		// Class must be loaded, and method cannot start with underscore, nor be a member of the base class
+		if (isset($this->$obj_name) && strncmp($method, '_', 1) != 0 &&
+		!in_array(strtolower($method), array_map('strtolower', get_class_methods('CI_Controller')))) {
+			// Check for _remap
+			if ($this->is_callable($this->$obj_name, '_remap')) {
+				// Call _remap
+				$this->$obj_name->_remap($method, $args);
+				return TRUE;
+			}
+			else if ($this->is_callable($this->$obj_name, $method)) {
+				// Call method
+				call_user_func_array(array(&$this->$obj_name, $method), $args);
+				return TRUE;
+			}
 		}
 
-		// Should we log the error?
-		if ($this->config->item('log_threshold') != 0) {
-			$this->exceptions->log_exception($severity, $message, $filepath, $line);
-		}
+		// Neither _remap nor method could be called
+		return FALSE;
 	}
 
 	/**
@@ -816,6 +928,7 @@ class CodeIgniter extends CI_CoreShare {
 	 * This function loads a class, along with any subclass, instantiates it
 	 * (unless overridden), and attaches the object to the core.
 	 *
+	 * @throws	CI_ShowError	if object name is in use or class isn't found
 	 * @param	string	object type ('core', 'library', 'helper', 'model', 'controller')
 	 * @param	string	class name
 	 * @param	string	object name (or FALSE to prevent attachment)
@@ -851,12 +964,12 @@ class CodeIgniter extends CI_CoreShare {
 				$class = ucfirst($type);
 				break;
 			default:
-				$this->show_error('Invalid object type in load request: '.$type);
+				throw new CI_ShowError('Invalid object type in load request: '.$type);
 		}
 
 		// Determine if name is in use
 		if ($obj_name !== FALSE && isset($this->$obj_name)) {
-			$this->show_error('The '.$type.' name you are loading is the name of a resource that is '.
+			throw new CI_ShowError('The '.$type.' name you are loading is the name of a resource that is '.
 				'already being used: '.$obj_name);
 		}
 
@@ -892,8 +1005,7 @@ class CodeIgniter extends CI_CoreShare {
 				default:
 					// No base class is a fatal error
 					$msg = ucfirst($type).' base class '.$class.' could not be found';
-					$this->log_message('error', $msg);
-					$this->show_error($msg);
+					throw new CI_ShowError($msg, '', 0, $msg);
 					break;
 			}
 		}
@@ -934,14 +1046,13 @@ class CodeIgniter extends CI_CoreShare {
 			if ($classnm == FALSE) {
 				// No final class is a fatal error
 				$msg = ucfirst($type).' class '.$subclass.' could not be found';
-				$this->log_message('error', $msg);
-				$this->show_error($msg);
+				throw new CI_ShowError($msg, '', 0, $msg);
 			}
 		}
 
 		// Get class name for _ci_loaded array
 		$name = isset($subclass) ? strtolower($subclass) : strtolower($class);
-		if ($obj_name === FALSE) {
+		if ($type == 'helper' || $obj_name === FALSE) {
 			// Mark class as loaded without name
 			$this->_ci_loaded[$name][] = TRUE;
 
@@ -954,27 +1065,29 @@ class CodeIgniter extends CI_CoreShare {
 		}
 
 		// Determine parameters
-		if ($type == 'core') {
-			// Each core class gets a reference to the parent
+		if ($type == 'library') {
+			if (is_null($params)) {
+				// See if there's a config file for the class
+				$file = strtolower($class).'.php';
+				$config = self::get_config($file, 'config');
+				if (!is_array($config)) {
+					// Try uppercase
+					$config = self::get_config(ucfirst($file), 'config');
+				}
+
+				// Set params to config if found
+				if (is_array($config)) {
+					$params =& $config;
+				}
+			}
+		}
+		else {
+			// Each object gets a reference to the parent
 			if (!is_null($params)) {
-				// Pass core params as extras
+				// Pass other params as extras
 				$extras = $params;
 			}
 			$params = $this;
-		}
-		else if ($type == 'library' && is_null($params)) {
-			// See if there's a config file for the class
-			$file = strtolower($class).'.php';
-			$config = self::get_config($file, 'config');
-			if (!is_array($config)) {
-				// Try uppercase
-				$config = self::get_config(ucfirst($file), 'config');
-			}
-
-			// Set params to config if found
-			if (is_array($config)) {
-				$params =& $config;
-			}
 		}
 
 		// Attach object
@@ -1086,7 +1199,7 @@ class CodeIgniter extends CI_CoreShare {
 		unset($_ci_view);
 
 		if (!$exists) {
-			$this->show_error('Unable to load the requested file: '.$file);
+			throw new CI_ShowError('Unable to load the requested file: '.$file);
 		}
 		unset($exists);
 		unset($file);
@@ -1180,27 +1293,11 @@ class CodeIgniter extends CI_CoreShare {
 		// If we got here, it's not a real path - just return as-is
 		return $path;
 	}
-
-	/**
-	 * Call a hook if enabled
-	 *
-	 * @param	string	hook name
-	 * @return	mixed	NULL if disabled, otherwise hook return value
-	 */
-	protected function _call_hook($hook) {
-		// If we have no hooks, return NULL
-		if (!isset($this->hooks)) {
-			return NULL;
-		}
-
-		// Otherwise, call the hook
-		return $this->_call_core($this->hooks, '_call_hook', $hook);
-	}
 }
 // END CodeIgniter class
 
 /**
- * Get instance [DEPRECATED]
+ * Get instance [DEPRECATED - use CodeIgniter::instance()]
  *
  * Global function to return singleton instance of core object
  *
@@ -1212,7 +1309,7 @@ function &get_instance() {
 }
 
 /**
- * Show error [DEPRECATED]
+ * Show error [DEPRECATED - use $CI->show_error()]
  *
  * Global function to call core method
  *
@@ -1228,7 +1325,7 @@ function show_error($message, $status_code = 500, $heading = 'An Error Was Encou
 }
 
 /**
- * Log message [DEPRECATED]
+ * Log message [DEPRECATED - use $CI->log_message()]
  *
  * Global function to call core method
  *

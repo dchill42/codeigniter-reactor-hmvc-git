@@ -199,7 +199,7 @@ class CI_Loader extends CI_CoreShare {
 		// Check if call is disabled
 		if ($call) {
 			// Pass any remaining route segments as arguments to the call
-			return $this->CI->call_controller($class, $method, $route, $obj_name);
+			return $this->_call_core($this->CI, '_call_controller', $class, $method, $route, $obj_name);
 		}
 
 		return TRUE;

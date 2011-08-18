@@ -16,21 +16,20 @@
 /**
  * Exceptions Class
  *
+ * The base class, CI_CoreShare, is defined in CodeIgniter.php and allows
+ * Loader access to protected loading methods in CodeIgniter.
+ *
  * @package		CodeIgniter
  * @subpackage	Libraries
  * @category	Exceptions
  * @author		ExpressionEngine Dev Team
  * @link		http://codeigniter.com/user_guide/libraries/exceptions.html
  */
-class CI_Exceptions {
-    protected $CI = NULL;
-	public $action;
-	public $severity;
-	public $message;
-	public $filename;
-	public $line;
-	public $ob_level = 0;
-	public $levels = array(
+class CI_Exceptions extends CI_CoreShare {
+    protected $CI		= NULL;
+	protected $ob_level	= 0;
+
+	const LEVELS = array(
         E_ERROR				=>	'Error',
         E_WARNING			=>	'Warning',
         E_PARSE				=>	'Parsing Error',
@@ -49,141 +48,143 @@ class CI_Exceptions {
 	 * Constructor
 	 *
 	 * @param	object	parent reference
+	 * @param	int		initial output buffer level
 	 */
-	public function __construct(CodeIgniter $CI) {
+	public function __construct(CodeIgniter $CI, $ob_level) {
 		// Attach parent reference
         $this->CI =& $CI;
-
-		// Set output buffer level
-		$this->ob_level = ob_get_level();
-
+		$this->ob_level = $ob_level;
 		// Note: Do not log messages from this constructor.
-	}
-
-	/**
-	 * Exception Logger
-	 *
-	 * This function logs PHP generated error messages
-	 *
-	 * @access	private
-	 * @param	string	the error severity
-	 * @param	string	the error string
-	 * @param	string	the error filepath
-	 * @param	string	the error line number
-	 * @return	string
-	 */
-	public function log_exception($severity, $message, $filepath, $line) {
-		$severity = ( ! isset($this->levels[$severity])) ? $severity : $this->levels[$severity];
-
-		$this->CI->log_message('error', 'Severity: '.$severity.'  --> '.$message. ' '.$filepath.' '.$line, TRUE);
-	}
-
-	/**
-	 * 404 Page Not Found Handler
-	 *
-	 * Calls the 404 override method if available, or displays a generic 404 error.
-	 * The 404 override method will get the requested page as its first argument,
-	 * followed by any trailing segments of 404_override. So, if "foo/bar" triggered
-	 * a 404, and 404_override was "my404/method/one/two", the effect would be to call:
-	 *	my404->method("foo/bar", "one", "two");
-	 *
-	 * @access	private
-	 * @param	string
-	 * @return	string
-	 */
-	public function show_404($page = '', $log_error = TRUE) {
-		// By default we log this, but allow a dev to skip it
-		if ($log_error) {
-			$this->CI->log_message('error', '404 Page Not Found --> '.$page);
-		}
-
-		// Call show_error for the 404 - it will exit
-		$this->show_error('404 Page Not Found', 'The page you requested was not found.', 'error_404', 404);
 	}
 
 	/**
 	 * General Error Page
 	 *
-	 * This function takes an error message as input
-	 * (either as a string or an array) and displays
-	 * it using the specified template.
+	 * This function displays an error using the specified template unless an override is found.
+	 * The override method will get the exception as its first argument,
+	 * followed by any trailing segments of the override route. So, if the override
+	 * route was "errclass/method/one/two", the effect would be to call:
+	 *	errclass->method($exception, "one", "two");
 	 *
-	 * @param	string	the heading
-	 * @param	string	the message
-	 * @param	string	the template name
-	 * @return	string
+	 * @access	protected
+	 * @param	object	ShowError exception
+	 * @return	void
 	 */
-	public function show_error($heading, $message, $template = 'error_general', $status_code = 500) {
-		// Set status header
-		$this->CI->output->set_status_header($status_code);
-
-		// Clear any output buffering
-		if (ob_get_level() > $this->ob_level + 1) {
-			ob_end_flush();
+	protected function _show_error(CI_ShowError $error) {
+		// Log message if set
+		$log_msg = $error->getLogMsg();
+		if (!empty($log_msg)) {
+			$this->CI->log_message('error', $log_msg);
 		}
 
-		// Check Router for an error (or 404) override
-		$route = $this->CI->router->get_error_route($status_code == 404);
-		if ($route !== FALSE) {
-			// Insert or append arguments
-			if (count($route) > CI_Router::SEG_ARGS) {
-				// Insert heading and message after path, subdir, class, and method and before other args
-				$route = array_merge(
-					array_slice($route, 0, CI_Router::SEG_ARGS),
-					array($heading, $message),
-					array_slice($route, CI_Router::SEG_ARGS)
-				);
+		// Get status, heading, and message
+		$status_code = $error->getCode();
+		$heading = $error->getHeading();
+		$message = $error->getMessage();
+		if (!is_array($message)) {
+			$message = array($message);
+		}
+
+		try {
+			// Ensure Output is loaded and set status header
+			if (!isset($this->CI->output)) {
+				$this->_call_core($this->CI, '_load', 'core', 'Output');
 			}
-			else {
-				// Just append heading and message to the end
-				$route[] = $heading;
-				$route[] = $message;
+			$this->CI->output->set_status_header($status_code);
+
+			// Clear any output buffering
+			if (ob_get_level() > $this->ob_level + 1) {
+				ob_end_flush();
 			}
 
-			// Load the error Controller and call the method
-			if ($this->CI->load->controller($route)) {
-				// Display the output and exit
-				$this->CI->output->_display();
-				exit;
+			// Ensure Router is loaded
+			if (!isset($this->CI->router)) {
+				$this->_call_core($this->CI, '_load', 'core', 'Router');
+			}
+
+			// Check Router for an error (or 404) override
+			$route = $this->CI->router->get_error_route($status_code == 404);
+			if ($route !== FALSE) {
+				// Extract segment parts
+				$path = array_shift($route);
+				$subdir = array_shift($route);
+				$class = array_shift($route);
+				$method = array_shift($route);
+
+				// Prepend exception to any remaining args
+				array_unshift($route, $error);
+
+				// Load object in core
+				$this->_call_core($this->CI, '_load', 'controller', $class, '', NULL, $subdir, $path);
+
+				// Call controller method
+				if ($this->_call_core($this->CI, '_call_controller', $class, $method, $args)) {
+					// Display the output and exit
+					$this->_call_core($this->CI->output, '_display');
+					return;
+				}
+			}
+		}
+		catch (CI_ShowError $ex) {
+			// Just add the failure to the existing messages and move on
+			$msg = $ex->getMessage();
+			if (is_array($msg)) {
+				$message = array_merge($message, $msg);
+			}
+			else {
+				$message[] = $msg;
 			}
 		}
 
 		// If the override didn't exit above, just display the generic error template
+		// The output buffering here prevents displaying any partially buffered output
+		// from the pre-error operation
 		ob_start();
 		$message = '<p>'.implode('</p><p>', (is_array($message)) ? $message : array($message)).'</p>';
-		include(APPPATH.'errors/'.$template.'.php');
+		include(APPPATH.'errors/'.$error->getTemplate().'.php');
 		echo ob_get_clean();
-		exit;
 	}
 
 	/**
-	 * Native PHP error handler
+	 * Exception Handler
 	 *
-	 * @param	string	the error severity
-	 * @param	string	the error string
-	 * @param	string	the error filepath
-	 * @param	string	the error line number
-	 * @return	string
+	 * This is the custom exception handler that is declaired in the CodeIgniter constructor.
+	 * The main reason we use this is to permit PHP errors to be logged in our own log files
+	 * since the user may not have access to server logs. Since this function effectively
+	 * intercepts PHP errors, however, we also need to display errors based on the current
+	 * error_reporting level. We do that with the use of a PHP error template.
+	 *
+	 * @access	private
+	 * @return	void
 	 */
-	public function show_php_error($severity, $message, $filepath, $line) {
-		$severity = isset($this->levels[$severity]) ? $this->levels[$severity] : $severity;
+	public static function _exception_handler($errno, $message, $filepath, $line) {
+		// Convert severity to text, if possible
+		$severity = isset(self::LEVELS[$errno]) ? self::LEVELS[$errno] : $errno;
 
-		$filepath = str_replace("\\", '/', $filepath);
+		// Log the error - we have to call instance() here because this is a static function
+		CodeIgniter::instance()->log_message('error', 'Severity: '.$severity.'  --> '.$message.' '.$filepath.' '.$line,
+			TRUE);
 
-		// For safety reasons we do not show the full file path
-		if (FALSE !== strpos($filepath, '/')) {
-			$x = explode('/', $filepath);
-			$filepath = $x[count($x)-2].'/'.end($x);
+		// Should we display the error? We'll get the current error_reporting
+		// level and add its bits with the severity bits to find out.
+		if (($errno & error_reporting()) == $errno) {
+			// For safety reasons we do not show the full file path
+			$filepath = str_replace('\\', '/', $filepath);
+			if (FALSE !== strpos($filepath, '/')) {
+				$x = explode('/', $filepath);
+				$filepath = $x[count($x)-2].'/'.end($x);
+			}
+
+			// Clear any output buffering
+			if (ob_get_level() > $this->ob_level + 1) {
+				ob_end_flush();
+			}
+
+			// Buffer the template and echo it
+			ob_start();
+			include(APPPATH.'errors/error_php.php');
+			echo ob_get_clean();
 		}
-
-		if (ob_get_level() > $this->ob_level + 1) {
-			ob_end_flush();
-		}
-		ob_start();
-		include(APPPATH.'errors/error_php.php');
-		$buffer = ob_get_contents();
-		ob_end_clean();
-		echo $buffer;
 	}
 }
 // END Exceptions Class

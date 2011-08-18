@@ -84,7 +84,7 @@ class CI_DB_utility extends CI_DB_forge {
 		$sql = $this->_optimize_table($table_name);
 
 		if (is_bool($sql)) {
-			$this->CI->show_error('db_must_use_set');
+			throw new CI_ShowError('db_must_use_set');
 		}
 
 		$query = $this->CI->db->query($sql);
@@ -158,7 +158,7 @@ class CI_DB_utility extends CI_DB_forge {
 	 */
 	public function csv_from_result($query, $delim = ",", $newline = "\n", $enclosure = '"') {
 		if ( ! is_object($query) OR ! method_exists($query, 'list_fields')) {
-			$this->CI->show_error('You must submit a valid result object');
+			throw new CI_ShowError('You must submit a valid result object');
 		}
 
 		$out = '';
@@ -192,7 +192,7 @@ class CI_DB_utility extends CI_DB_forge {
 	 */
 	public function xml_from_result($query, $params = array()) {
 		if ( ! is_object($query) OR ! method_exists($query, 'list_fields')) {
-			$this->CI->show_error('You must submit a valid result object');
+			throw new CI_ShowError('You must submit a valid result object');
 		}
 
 		// Set our default values
