@@ -50,31 +50,14 @@ class CodeIgniter {
 			@set_time_limit(300);
 		}
 
-		log_message('debug', 'CodeIgniter Class Initialized');
-	}
-
-	/**
-	 * Initialize
-	 *
-	 * @return void
-	 */
-	protected function _init()
-	{
-		// Assign all the class objects that were instantiated by the
-		// bootstrap file (CodeIgniter.php) to local class variables
-		// so that CI can run as one big super object.
-		// Later core loads will be done through load_core_class() below.
-		foreach (is_loaded() as $var => $class)
-		{
-			$this->$var =& load_class($class);
-		}
-
 		// Get Config and load constants
 		$this->load_core_class('Config');
 		$this->config->get('constants.php', NULL);
 
 		// Load Loader
 		$this->load =& load_class('Loader', 'core');
+
+		log_message('debug', 'CodeIgniter Class Initialized');
 	}
 
 	/**
@@ -134,7 +117,7 @@ class CodeIgniter {
 			if ($this->is_callable($class, '_remap'))
 			{
 				// Call _remap
-				call_user_func_array(array(&$this->$name, '_remap'), array($method, $args));
+				$this->$name->_remap($method, $args);
 				return TRUE;
 			}
 			else if ($this->is_callable($class, $method))
@@ -173,7 +156,6 @@ class CodeIgniter {
 
 			// Instantiate object as subclass if defined, otherwise as base name
 			self::$instance = new $class();
-			self::$instance->_init();
 		}
 		return self::$instance;
 	}

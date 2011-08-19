@@ -195,6 +195,9 @@ class CI_Loader {
 		$class = array_shift($route);
 		$method = array_shift($route);
 
+		// Check for graceful naming request
+		$graceful = is_null($name);
+
 		// Set name if not provided
 		if (empty($name))
 		{
@@ -207,8 +210,35 @@ class CI_Loader {
 			// Check for name conflict
 			if (isset($this->CI->$name))
 			{
-				show_error('The controller name you are loading is the name of a resource that is already being used: '.
-					$name);
+				if ($graceful)
+				{
+					// This is a special case from Exceptions - find a name that works.
+					// The idea here is that the name doesn't really matter for an error override -
+					// this function will call the method, after which we exit.
+					// What is important is that we don't recursively call show_error() for a failed
+					// error override class name conflict.
+					for ($i = 3; $i > 0; --$i)
+					{
+						// Prepend an underscore
+						$name = '_'.$name;
+						if (!isset($this->CI->$name))
+						{
+							break;
+						}
+					}
+
+					// See if we found a winner
+					if ($i == 0)
+					{
+						// If three underscores didn't cut it, just fail gracefully
+						return FALSE;
+					}
+				}
+				else
+				{
+					show_error('The controller name you are loading is the name of a resource '.
+						'that is already being used: '.$name);
+				}
 			}
 
 			// Load base class(es) if not already done
@@ -330,7 +360,7 @@ class CI_Loader {
 				$db_conn = '';
 			}
 
-			$this->CI->load->database($db_conn, FALSE, TRUE);
+			$this->database($db_conn, FALSE, TRUE);
 		}
 
 		// Load base class(es) if not already done

@@ -107,18 +107,18 @@ class CI_Exceptions {
 	 * General Error Page
 	 *
 	 * This function takes an error message as input and passes it to the error
-     * override method if configured, or displays it using the specified template.
+	 * override method if configured, or displays it using the specified template.
 	 * The override method will get the heading and message(s) as its first arguments,
 	 * followed by any trailing segments of the override route. So, if the override
 	 * route was "errclass/method/one/two", the effect would be to call:
 	 *	errclass->method($heading, $message, "one", "two");
-     * 
+	 * 
 	 *
 	 * @access	private
 	 * @param	string	the heading
 	 * @param	mixed	the message string or array of strings
 	 * @param	string	the template name
-     * @param   int     the optional error status code
+	 * @param	int		the optional error status code
 	 * @return	string
 	 */
 	function show_error($heading, $message, $template = 'error_general', $status_code = 500)
@@ -151,7 +151,9 @@ class CI_Exceptions {
 			}
 
 			// Load the error Controller and call the method
-			if ($this->CI->load->controller($route)) {
+			// We pass a NULL for the object name to request fallback renaming attempts
+			// or a graceful failure to guarantee show_error() isn't called recursively.
+			if ($this->CI->load->controller($route, NULL)) {
 				// Display the output and exit
 				$this->CI->output->_display();
 				exit;
