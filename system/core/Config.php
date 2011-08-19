@@ -60,6 +60,8 @@ class CI_Config {
 
 			$this->set_item('base_url', $base_url);
 		}
+
+		$CI->log_message('debug', 'Config Class Initialized');
 	}
 
 	/**

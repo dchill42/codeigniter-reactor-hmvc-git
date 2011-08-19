@@ -275,6 +275,7 @@ class CI_Output extends CI_CoreShare {
 	 * This function sends the finalized output data to the browser along
 	 * with any server headers and profile data. It also stops the
 	 * benchmark timer so the page rendering speed and memory usage can be shown.
+	 * The CodeIgniter and Exception objects call this protected method via CI_CoreShare.
 	 *
 	 * @access	protected
 	 * @return	mixed
@@ -371,8 +372,11 @@ class CI_Output extends CI_CoreShare {
 	/**
 	 * Update/serve a cached file
 	 *
+	 * This function checks for a cached copy of the request to deliver.
+	 * The CodeIgniter object calls this protected method via CI_CoreShare.
+	 *
 	 * @access	protected
-	 * @return	void
+	 * @return	boolean	TRUE if cache displayed, otherwise FALSE
 	 */
 	protected function _display_cache() {
 		$cache_path = ($this->CI->config->item('cache_path') == '') ? APPPATH.'cache/' :
@@ -422,6 +426,9 @@ class CI_Output extends CI_CoreShare {
 
 	/**
 	 * Write a Cache File
+	 *
+	 * This helper function writes a cache file.
+	 * It should only be called internally.
 	 *
 	 * @access	protected
 	 * @return	void

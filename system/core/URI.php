@@ -213,6 +213,9 @@ class CI_URI extends CI_CoreShare {
 	/**
 	 * Load the URI and return it as an array of segments
 	 *
+	 * This function establishes the URI string.
+	 * The Router object calls this protected function via CI_CoreShare.
+	 *
 	 * @access	protected
 	 * @return	array	uri segments
 	 */
@@ -298,9 +301,10 @@ class CI_URI extends CI_CoreShare {
 	/**
 	 * Set the routed URI Segments and reindex.
 	 *
-	 * This function is called by Router to set the routed segments and re-index the segment arrays
-	 * so that they start at 1 rather than 0. Doing so makes it simpler to use functions like
-	 * segment(n) since there is a 1:1 relationship between the segment array and the actual segments.
+	 * This function sets the routed segments and re-index the segment arrays so that they start
+	 * at 1 rather than 0. Doing so makes it simpler to use functions like segment(n) since there
+	 * is a 1:1 relationship between the segment array and the actual segments.
+	 * The Router object calls this protected function via CI_CoreShare.
 	 *
 	 * @access	protected
 	 * @param	array	routed segments
@@ -319,6 +323,9 @@ class CI_URI extends CI_CoreShare {
 
 	/**
 	 * Filter segments for malicious characters
+	 *
+	 * This helper function filters URI segments.
+	 * It should only be called internally.
 	 *
 	 * @access	protected
 	 * @param	string
@@ -343,8 +350,8 @@ class CI_URI extends CI_CoreShare {
 	/**
 	 * Detects the URI
 	 *
-	 * This function will detect the URI automatically and fix the query string
-	 * if necessary.
+	 * This helper function will detect the URI automatically and fix the query string
+	 * if necessary. It should only be called internally.
 	 *
 	 * @access	protected
 	 * @return	string
@@ -382,6 +389,9 @@ class CI_URI extends CI_CoreShare {
 	/**
 	 * Detects the query string if supported
 	 *
+	 * This helper function checks for query string support and parses the query string
+	 * if necessary. It should only be called internally.
+	 *
 	 * @return	boolean	TRUE if query string supported and parsed, otherwise FALSE
 	 */
 	protected function _parse_query_string() {
@@ -416,7 +426,8 @@ class CI_URI extends CI_CoreShare {
 	/**
 	 * Parse cli arguments
 	 *
-	 * Take each command line argument and assume it is a URI segment.
+	 * This helper function takes each command line argument and assumes it is a URI segment.
+	 * It should only be called internally.
 	 *
 	 * @access	protected
 	 * @return	string
@@ -429,6 +440,9 @@ class CI_URI extends CI_CoreShare {
 
 	/**
 	 * Get the request URI
+	 *
+	 * This helper function gets the request URI with the script name removed.
+	 * It should only be called internally.
 	 *
 	 * @return	string	request URI
 	 */
@@ -451,6 +465,9 @@ class CI_URI extends CI_CoreShare {
 
 	/**
 	 * Generate a key value pair from the URI string or Re-routed URI string
+	 *
+	 * This helper function supports uri_to_assoc() and ruri_to_assoc().
+	 * It should only be called internally.
 	 *
 	 * @access	protected
 	 * @param	int	the starting segment number
@@ -520,6 +537,9 @@ class CI_URI extends CI_CoreShare {
 
 	/**
 	 * Fetch a URI Segment and add a trailing slash - helper function
+	 *
+	 * This helper function supports slash_segment() and slash_rsegment().
+	 * It should only be called internally.
 	 *
 	 * @access	protected
 	 * @param	integer

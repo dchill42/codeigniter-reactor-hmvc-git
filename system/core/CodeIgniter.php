@@ -43,6 +43,7 @@ class CI_EndRun extends Exception { }
 class CI_ShowError extends Exception {
 	protected $heading;
 	protected $template;
+	protected $severity;
 	protected $log_msg;
 
 	/**
@@ -65,21 +66,80 @@ class CI_ShowError extends Exception {
 	}
 
 	/**
+	 * Override the exception file
+	 *
+	 * @param	string	file name
+	 * @return	void
+	 */
+	public function setFile($file) {
+		$this->file = $file;
+	}
+
+	/**
+	 * Override the exception line number
+	 *
+	 * @param	int	 line number
+	 * @return	void
+	 */
+	public function setLine($line) {
+		$this->line = $line;
+	}
+
+	/**
+	 * Set message severity
+	 *
+	 * @param	int		error level
+	 * @return	void
+	 */
+	public function setSeverity($errno) {
+		// According to PHP, these are the only errors a user function can handle:
+		$levels = array(E_WARNING => 'Warning', E_NOTICE => 'Notice', E_USER_ERROR => 'User Error',
+			E_USER_WARNING => 'User Warning', E_USER_NOTICE => 'User Notice');
+		$this->severity = isset($levels[$errno]) ? $levels[$errno] : $errno;
+	}
+
+	/**
 	 * Add error message
 	 *
 	 * Adds another message to the exception
-	 * 
-	 * @param	string	error message
+	 *
+	 * @param	mixed	error message or array of messages
 	 * @return	void
 	 */
 	public function addMessage($message) {
-		// Force message to array
+		// Force messages to arrays
 		if (!is_array($this->message)) {
 			$this->message = array($this->message);
 		}
-		
-		// Append new message
-		$this->message[] = $message;
+		if (!is_array($message)) {
+			$message = array($message);
+		}
+
+		// Append new message(s)
+		$this->message = array_merge($this->message, $message);
+	}
+
+	/**
+	 * Return message(s) optionally wrapped in HTML tags
+	 *
+	 * @param	string	optional prefix tag
+	 * @param	string	optional suffix tag
+	 * @return	mixed	wrapped message string if prefix/suffix given, otherwise message string or array
+	 */
+	public function getMessage($prefix = NULL, $suffix = NULL) {
+		// Check for empty arguments
+		if (is_null($prefix) && is_null($suffix)) {
+			// Just return message as-is
+			return $this->message;
+		}
+
+		// Wrap message(s)
+		if (is_array($this->message)) {
+			return $prefix.implode($suffix.$prefix, $this->message).$suffix;
+		}
+		else {
+			return $prefix.$this->message.$suffix;
+		}
 	}
 
 	/**
@@ -101,6 +161,15 @@ class CI_ShowError extends Exception {
 	}
 
 	/**
+	 * Get error severity
+	 *
+	 * @return	string	error severity
+	 */
+	public function getSeverity() {
+		return $this->severity;
+	}
+
+	/**
 	 * Get error log message
 	 *
 	 * @return	string	error log message
@@ -114,7 +183,7 @@ class CI_ShowError extends Exception {
  * CodeIgniter Core Sharing Base Class
  *
  * This base class permits access to protected methods of other core classes
- * also derived from CI_CoreShare.
+ * also derived from CI_CoreShare. Subclasses are restricted to a specific list.
  *
  * @package		CodeIgniter
  * @subpackage	Libraries
@@ -488,7 +557,7 @@ class CodeIgniter extends CI_CoreShare {
 				return in_array($obj_name, $this->_ci_loaded[$class]);
 			}
 		}
-				
+
 		// Never loaded
 		return FALSE;
 	}
@@ -624,7 +693,6 @@ class CodeIgniter extends CI_CoreShare {
 		}
 
 		$non_displayables[] = '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+/S';	// 00-08, 11, 12, 14-31, 127
-
 		do {
 			$str = preg_replace($non_displayables, '', $str, -1, $count);
 		}
@@ -831,56 +899,17 @@ class CodeIgniter extends CI_CoreShare {
 			return;
 		}
 
-		// Convert severity to text, if possible
-		$severity = isset(self::LEVELS[$errno]) ? self::LEVELS[$errno] : $errno;
+		// Create exception
+		$error = new CI_ShowError($errstr, 'A PHP Error Was Encountered', 500,
+			'Severity: '.$severity.' --> '.$errstr.' '.$errfile.' '.$errline, 'error_php');
 
-		// Define log message
-		$log_msg = 'Severity: '.$severity.'  --> '.$errstr.' '.$errfile.' '.$errline;
+		// Set severity and override file (with safely trimmed path) and line
+		$error->setSeverity($errno);
+		$error->setFile(basename(dirname($errfile)).'/'.basename($errfile));
+		$error->setLine($errline);
 
-		// Assemble messages
-		$messages = array('Severity: '.$severity, 'Message: '.$errno, 'Filename: '.$errfile,
-			'Line Number: '.$errline);
-
-		// Create exception and pass to _display_error()
-		$error = new CI_ShowError($messages, 'A PHP Error Was Encountered', 500, $log_msg, 'error_php');
+		// Pass to _display_error
 		$this->_display_error($error);
-	}
-
-	/**
-	 * Error display handler
-	 *
-	 * This function lets us invoke the exception class and display errors.
-	 * It will send the error page directly to the browser and exit.
-	 *
-	 * @param	object	ShowError exception
-	 * @return	void
-	 */
-	protected function _display_error(CI_ShowError $error) {
-		try {
-			// Ensure Exceptions is loaded
-			if (!isset($this->exceptions)) {
-				$this->_load('core', 'Exceptions', '', $this->_ci_ob_level);
-			}
-
-			// Call show_error
-			$this->_call_core($this->exceptions, '_show_error', $error);
-		}
-		catch (CI_ShowError $ex) {
-			// Load failed - dump raw HTML output
-			$message = $error->getMessage();
-			if (is_array($message)) {
-				$message = implode('</p><p>', $message);
-			}
-			$more = $ex->getMessage();
-			if (is_array($more)) {
-				$message .= '</p><p>'.implode('</p><p>', $more);
-			}
-			else {
-				$message .= '</p><p>'.$more;
-			}
-			echo '<html><body><h1>'.$header.'</h1><p>'.$message.'</p></body></html>';
-		}
-		exit;
 	}
 
 	/**
@@ -888,6 +917,7 @@ class CodeIgniter extends CI_CoreShare {
 	 *
 	 * Requires that controller already be loaded, validates method name, and calls
 	 * _remap if available.
+	 * The Loader and Exceptions objects call this protected function via CI_CoreShare.
 	 *
 	 * @access	protected
 	 * @param	string	class name
@@ -927,6 +957,7 @@ class CodeIgniter extends CI_CoreShare {
 	 *
 	 * This function loads a class, along with any subclass, instantiates it
 	 * (unless overridden), and attaches the object to the core.
+	 * The Loader and Exceptions objects call this protected function via CI_CoreShare.
 	 *
 	 * @throws	CI_ShowError	if object name is in use or class isn't found
 	 * @param	string	object type ('core', 'library', 'helper', 'model', 'controller')
@@ -976,15 +1007,11 @@ class CodeIgniter extends CI_CoreShare {
 		// Prepare search paths
 		$paths = array_keys($this->_ci_app_paths);
 		$basepaths[] = BASEPATH;
-		if ($type == 'core') {
-			// Core classes start with 'CI_' and get searched base first
-			$prefix = 'CI_';
-			$basepaths = array_reverse($basepaths);
-		}
-		else {
-			// All others have no prefix
-			$prefix = '';
-		}
+
+		// Set prefix - core classes start with 'CI_', others do not
+		$prefix = $type == 'core' ? 'CI_' : '';
+
+		// There is no class to test for in a helper
 		$test = ($type != 'helper');
 
 		// Load base class - this must be found for any load
@@ -1103,6 +1130,112 @@ class CodeIgniter extends CI_CoreShare {
 	}
 
 	/**
+	 * Run user file
+	 *
+	 * This function is used to execute views and files on behalf of the Loader.
+	 * Variables are prefixed with _ci_ to avoid symbol collision with
+	 * variables made available to view files.
+	 * Files automatically have access to all loaded objects via $this->object.
+	 * The Loader object calls this protected function via CI_CoreShare.
+	 *
+	 * @access	protected
+	 * @throws	CI_ShowError	if file couldn't be found
+	 * @param	string	view name or path to file
+	 * @param	boolean	is view
+	 * @param	boolean	return output as string
+	 * @param	array	local vars to declare
+	 * @return	mixed	output if $_ci_return is TRUE, otherwise void
+	 */
+	protected function _run_file($_ci_path, $_ci_view, $_ci_return, array $_ci_vars = NULL) {
+		// Set the path to the requested file
+		$exists = FALSE;
+		if ($_ci_view) {
+			// Path is a view name - search for real path
+			$file = (pathinfo($_ci_path, PATHINFO_EXTENSION) == '') ? $_ci_path.'.php' : $_ci_path;
+			foreach ($this->_ci_app_paths as $path => $cascade) {
+				$path .= 'views/'.$file;
+				if (file_exists($path)) {
+					$_ci_path = $path;
+					$exists = TRUE;
+					break;
+				}
+
+				if ( ! $cascade) {
+					break;
+				}
+			}
+			unset($path);
+			unset($cascade);
+		}
+		else {
+			// Path points to file - break out filename and check existence
+			$file = basename($_ci_path);
+			$exists = file_exists($_ci_path);
+		}
+		unset($_ci_view);
+
+		if (!$exists) {
+			throw new CI_ShowError('Unable to load the requested file: '.$file);
+		}
+		unset($exists);
+		unset($file);
+
+		// Extract local variables
+		if (!empty($_ci_vars)) {
+			extract($_ci_vars);
+		}
+		unset($_ci_vars);
+
+		/*
+		 * Buffer the output
+		 *
+		 * We buffer the output for two reasons:
+		 * 1. Speed. You get a significant speed boost.
+		 * 2. So that the final rendered template can be post-processed by the output class.
+		 *	Why do we need post processing? For one thing, in order to show the elapsed page load time.
+		 *	Unless we can intercept the content right before it's sent to the browser and then stop
+		 *	the timer it won't be accurate.
+		 */
+		ob_start();
+
+		// If the PHP installation does not support short tags we'll do a little string replacement,
+		// changing the short tags to standard PHP echo statements.
+		if ((bool) @ini_get('short_open_tag') === FALSE && $this->config->item('rewrite_short_tags') == TRUE) {
+			// Assemble strings to help prevent tag interpretation
+			$end = '?'.'>';
+			$pattern = '/<'.'\?=\s*([^>]*);*\s*\?'.'>/';
+			$replace = '<'.'?php echo \1; ?'.'>';
+			echo eval($end.preg_replace($pattern, $replace, file_get_contents($_ci_path)));
+		}
+		else {
+			// Include file (include_once would prevent multiple views with the same name)
+			include($_ci_path);
+		}
+
+		$this->log_message('debug', 'File loaded: '.$_ci_path);
+
+		// Return the file data if requested
+		if ($_ci_return === TRUE) {
+			return ob_get_clean();
+		}
+
+		/*
+		 * Flush the buffer... or buff the flusher?
+		 *
+		 * In order to permit views to be nested within other views, we need to
+		 * flush the content back out whenever we are beyond the first level of
+		 * output buffering so that it can be seen and included properly by the
+		 * first included template and any subsequent ones. Oy!
+		 */
+		if (ob_get_level() > $this->_ci_ob_level + 1) {
+			ob_end_flush();
+		}
+		else {
+			$this->output->append_output(ob_get_clean());
+		}
+	}
+
+	/**
 	 * Include source
 	 *
 	 * This helper function searches the provided paths for a source file in the
@@ -1156,116 +1289,9 @@ class CodeIgniter extends CI_CoreShare {
 	}
 
 	/**
-	 * Run user file
-	 *
-	 * This function is used to execute views and files on behalf of the Loader.
-	 * Variables are prefixed with _ci_ to avoid symbol collision with
-	 * variables made available to view files.
-	 * Files automatically have access to all loaded objects via $this->object.
-	 *
-	 * @access	protected
-	 * @param	string	view name or path to file
-	 * @param	boolean	is view
-	 * @param	boolean	return output as string
-	 * @param	array	local vars to declare
-	 * @return	mixed	output if $_ci_return is TRUE, otherwise void
-	 */
-	protected function _run_file($_ci_path, $_ci_view, $_ci_return, array $_ci_vars = NULL) {
-		// Set the path to the requested file
-		$exists = FALSE;
-		if ($_ci_view) {
-			// Path is a view name - search for real path
-			$file = (pathinfo($_ci_path, PATHINFO_EXTENSION) == '') ? $_ci_path.'.php' : $_ci_path;
-			foreach ($this->_ci_app_paths as $path => $cascade) {
-				$path .= 'views/'.$file;
-				if (file_exists($path)) {
-					$_ci_path = $path;
-					$exists = TRUE;
-					break;
-				}
-
-				if ( ! $cascade) {
-					break;
-				}
-			}
-			unset($path);
-			unset($cascade);
-		}
-		else {
-			// Path points to file - break out filename and check existence
-			$file = end(explode('/', $_ci_path));
-			$exists = file_exists($_ci_path);
-		}
-		unset($_ci_view);
-
-		if (!$exists) {
-			throw new CI_ShowError('Unable to load the requested file: '.$file);
-		}
-		unset($exists);
-		unset($file);
-
-		// Extract local variables
-		if (!empty($_ci_vars)) {
-			extract($_ci_vars);
-		}
-		unset($_ci_vars);
-
-		/*
-		 * Buffer the output
-		 *
-		 * We buffer the output for two reasons:
-		 * 1. Speed. You get a significant speed boost.
-		 * 2. So that the final rendered template can be post-processed by the output class.
-		 *	Why do we need post processing? For one thing, in order to show the elapsed page load time.
-		 *	Unless we can intercept the content right before it's sent to the browser and then stop
-		 *	the timer it won't be accurate.
-		 */
-		ob_start();
-
-		// If the PHP installation does not support short tags we'll do a little string replacement,
-		// changing the short tags to standard PHP echo statements.
-		if ((bool) @ini_get('short_open_tag') === FALSE && $this->config->item('rewrite_short_tags') == TRUE) {
-			// Assemble strings to help prevent tag interpretation
-			$end = '?'.'>';
-			$pattern = '/<'.'\?=\s*([^>]*);*\s*\?'.'>/';
-			$replace = '<'.'?php echo \1; ?'.'>';
-			echo eval($end.preg_replace($pattern, $replace, file_get_contents($_ci_path)));
-		}
-		else {
-			// Include file (include_once would prevent multiple views with the same name)
-			include($_ci_path);
-		}
-
-		$this->log_message('debug', 'File loaded: '.$_ci_path);
-
-		// Return the file data if requested
-		if ($_ci_return === TRUE) {
-			$buffer = ob_get_contents();
-			@ob_end_clean();
-			return $buffer;
-		}
-
-		/*
-		 * Flush the buffer... or buff the flusher?
-		 *
-		 * In order to permit views to be nested within other views, we need to
-		 * flush the content back out whenever we are beyond the first level of
-		 * output buffering so that it can be seen and included properly by the
-		 * first included template and any subsequent ones. Oy!
-		 */
-		if (ob_get_level() > $this->_ci_ob_level + 1) {
-			ob_end_flush();
-		}
-		else {
-			$this->output->append_output(ob_get_contents());
-			@ob_end_clean();
-		}
-	}
-
-	/**
 	 * Resolves package path
 	 *
-	 * This function is used to identify absolute paths in the filesystem and include path
+	 * This helper function is used to identify absolute paths in the filesystem and include path.
 	 *
 	 * @access	protected
 	 * @param	string	initial path
@@ -1292,6 +1318,38 @@ class CodeIgniter extends CI_CoreShare {
 
 		// If we got here, it's not a real path - just return as-is
 		return $path;
+	}
+
+	/**
+	 * Error display handler
+	 *
+	 * This helper function lets us invoke the exception class and display errors.
+	 * It will send the error page directly to the browser and exit.
+	 *
+	 * @param	object	ShowError exception
+	 * @return	void
+	 */
+	protected function _display_error(CI_ShowError $error) {
+		try {
+			// Log message if set
+			$log_msg = $error->getLogMsg();
+			if (!empty($log_msg)) {
+				$this->log_message('error', $log_msg);
+			}
+
+			// Ensure Exceptions is loaded
+			if (!isset($this->exceptions)) {
+				$this->_load('core', 'Exceptions', '', $this->_ci_ob_level);
+			}
+
+			// Call show_error
+			$this->_call_core($this->exceptions, '_show_error', $error);
+		}
+		catch (CI_ShowError $ex) {
+			// Load failed - dump raw HTML output
+			$error->addMessage($ex->getMessage());
+			echo '<html><body><h1>'.$error->getHeading().'</h1>'.$error->getMessage('<p>', '</p>').'</body></html>';
+		}
 	}
 }
 // END CodeIgniter class

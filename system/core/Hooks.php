@@ -44,7 +44,8 @@ class CI_Hooks extends CI_CoreShare {
 	/**
 	 * Call Hook
 	 *
-	 * Calls a particular hook
+	 * Calls a particular hook.
+	 * The CodeIgniter object calls this protected function via CI_CoreShare.
 	 *
 	 * @access	protected
 	 * @param	string	the hook name
@@ -70,7 +71,8 @@ class CI_Hooks extends CI_CoreShare {
 	/**
 	 * Run Hook
 	 *
-	 * Runs a particular hook
+	 * This helper function runs a particular hook.
+	 * It should only be called internally.
 	 *
 	 * @access	protected
 	 * @param	array	the	hook details

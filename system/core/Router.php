@@ -32,6 +32,7 @@ class CI_Router extends CI_CoreShare {
 	protected $route_stack	= array('', '', '', '');
 	protected $default_controller;
 
+	// Segment stack indexes
 	const SEG_PATH = 0;
 	const SEG_SUBDIR = 1;
 	const SEG_CLASS = 2;
@@ -243,14 +244,14 @@ class CI_Router extends CI_CoreShare {
 	/**
 	 * Get error route
 	 *
-	 * Identifies the 404 or error override route, if defined, and validates it.
+	 * Identifies error override route, if defined, and validates it.
 	 *
-	 * @param	boolean	TRUE for 404 route
+	 * @param	string	error template name ('general', '404', 'php')
 	 * @return	mixed	FALSE if route doesn't exist, otherwise array of 4+ segments
 	 */
-	public function get_error_route($is404 = FALSE) {
+	public function get_error_route($template) {
 		// Select route
-		$route = ($is404 ? '404' : 'error').'_override';
+		$route = ($template == 'general' ? 'error' : $template).'_override';
 
 		// See if 404_override is defined
 		if (empty($this->routes[$route])) {
@@ -267,7 +268,7 @@ class CI_Router extends CI_CoreShare {
 	 *
 	 * This function determines what should be served based on the URI request,
 	 * as well as any "routes" that have been set in the routing config file.
-	 * It is called from CodeIgniter
+	 * The CodeIgniter object calls this protected method via CI_CoreShare.
 	 *
 	 * @access	protected
 	 * @param	array	route overrides
@@ -323,8 +324,8 @@ class CI_Router extends CI_CoreShare {
 	/**
 	 * Set the Route
 	 *
-	 * This function takes an array of URI segments as
-	 * input, and sets the current class/method
+	 * This helper function takes an array of URI segments as input, and sets the current class/method
+	 * It should only be called internally
 	 *
 	 * @access	protected
 	 * @param	mixed	route URI string or array of route segments
@@ -339,7 +340,6 @@ class CI_Router extends CI_CoreShare {
 		$route = $this->validate_route($route);
 		if ($route === FALSE) {
 			// Invalid request - show a 404
-			$page = isset($route[0]) ? $route[0] : '';
 			throw new CI_ShowError('The page you requested was not found.', '404 Page Not Found', 404,
 				'404 Page Not Found --> '.$uri, 'error_404');
 		}
@@ -374,6 +374,9 @@ class CI_Router extends CI_CoreShare {
 
 	/**
 	 * Get segments of default controller
+	 *
+	 * This helper function breaks the default controller, if any, into segments
+	 * It should only be called internally
 	 *
 	 * @access	protected
 	 * @return	array	array of segments

@@ -477,8 +477,8 @@ class CI_Loader extends CI_CoreShare {
 	 * Autoloader
 	 *
 	 * The config/autoload.php file contains an array that permits various
-	 * resources to be loaded automatically. The CodeIgniter object calls
-	 * this protected method.
+	 * resources to be loaded automatically.
+	 * The CodeIgniter object calls this protected method via CI_CoreShare.
 	 *
 	 * @access	protected
 	 * @param	array	autoload array
@@ -525,8 +525,10 @@ class CI_Loader extends CI_CoreShare {
 	/**
 	 * Get path from filename
 	 *
-	 * Separates dirname, if present, from file
+	 * This helper function separates dirname, if present, from file.
+	 * It should only be called internally.
 	 *
+	 * @access	protected
 	 * @param	string	reference to filename (to be modified)
 	 * @return	string	path name
 	 */

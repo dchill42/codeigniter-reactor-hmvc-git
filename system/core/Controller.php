@@ -39,6 +39,23 @@ class CI_Controller {
 	}
 
 	/**
+	 * Show 404
+	 *
+	 * This function exits Controller operation and informs the user that the
+	 * requested page could not be found. It is mainly for use inside _remap().
+	 *
+	 * @param	string	requested page
+	 * @param	boolean	FALSE to skip logging
+	 * @return	void
+	 */
+	public function show_404($page = '', $log_error = TRUE) {
+		// Just throw the exception - CodeIgniter will catch it
+		$log_msg = ($page && $log_error) ? '404 Page Not Found --> '.$page : '';
+		throw new CI_ShowError('The page you requested was not found.', '404 Page Not Found', 404, $log_msg,
+			'error_404');
+	}
+
+	/**
 	 * End operation
 	 *
 	 * This function exits Controller operation and goes directly to
