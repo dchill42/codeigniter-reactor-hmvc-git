@@ -124,7 +124,7 @@ class CI_Config {
 	 *
 	 * Reads and merges config arrays from named config files
 	 *
-	 * @param	string	the	config file name
+	 * @param	string	the config file name
 	 * @param	string	array name
 	 * @return	mixed	merged config if found, otherwise FALSE
 	 */
@@ -146,8 +146,8 @@ class CI_Config {
 	/**
 	 * Fetch a config file item
 	 *
-	 * @param	string	the	config item name
-	 * @param	string	the	index name
+	 * @param	string	the config item name
+	 * @param	string	the index name
 	 * @return	string
 	 */
 	public function item($item, $index = '') {
@@ -176,7 +176,7 @@ class CI_Config {
 	/**
 	 * Fetch a config file item - adds slash after item (if item is not empty)
 	 *
-	 * @param	string	the	config item name
+	 * @param	string	the config item name
 	 * @param	bool
 	 * @return	string
 	 */
@@ -192,7 +192,7 @@ class CI_Config {
 	 * Site URL
 	 * Returns base_url . index_page [. uri_string]
 	 *
-	 * @param	string	the	URI string
+	 * @param	string	the URI string
 	 * @return	string
 	 */
 	public function site_url($uri = '') {

@@ -26,7 +26,7 @@
  * @link		http://codeigniter.com/user_guide/libraries/exceptions.html
  */
 class CI_Exceptions extends CI_CoreShare {
-    protected $CI		= NULL;
+	protected $CI		= NULL;
 	protected $ob_level	= 0;
 
 	/**
@@ -37,7 +37,7 @@ class CI_Exceptions extends CI_CoreShare {
 	 */
 	public function __construct(CodeIgniter $CI, $ob_level) {
 		// Attach parent reference
-        $this->CI =& $CI;
+		$this->CI =& $CI;
 		$this->ob_level = $ob_level;
 		// Note: Do not log messages from this constructor.
 	}
@@ -50,15 +50,15 @@ class CI_Exceptions extends CI_CoreShare {
 	 * followed by any trailing segments of the override route. So, if the override
 	 * route was "errclass/method/one/two", the effect would be to call:
 	 *	errclass->method($exception, "one", "two");
-     * The CodeIgniter object calls this protected function via CI_CoreShare.
+	 * The CodeIgniter object calls this protected function via CI_CoreShare.
 	 *
 	 * @access	protected
 	 * @param	object	ShowError exception
 	 * @return	void
 	 */
 	protected function _show_error(CI_ShowError $error) {
-        // Get template
-        $template = $error->getTemplate();
+		// Get template
+		$template = $error->getTemplate();
 
 		try {
 			// Ensure Output is loaded and set status header

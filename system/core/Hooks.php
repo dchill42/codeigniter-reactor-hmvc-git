@@ -75,7 +75,7 @@ class CI_Hooks extends CI_CoreShare {
 	 * It should only be called internally.
 	 *
 	 * @access	protected
-	 * @param	array	the	hook details
+	 * @param	array	the hook details
 	 * @return	bool
 	 */
 	protected function _run_hook($data) {
