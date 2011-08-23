@@ -28,6 +28,12 @@
  * @link		http://codeigniter.com/user_guide/general/controllers.html
  */
 class CodeIgniter {
+	/**
+	 * CodeIgniter singleton instance
+	 *
+	 * @var	 object
+	 * @access  private
+	 */
 	private static $instance = NULL;
 
 	/**
@@ -61,7 +67,8 @@ class CodeIgniter {
 	 *
 	 * @return	void
 	 */
-	protected function _init() {
+	protected function _init()
+	{
 		// Get Config and load constants
 		$this->load_core_class('Config');
 		$this->config->get('constants.php', NULL);
@@ -191,6 +198,11 @@ class CodeIgniter {
  *  Define the CodeIgniter Version
  * ------------------------------------------------------
  */
+	/**
+	 * CodeIgniter Version
+	 *
+	 * @var string
+	 */
 	define('CI_VERSION', '2.0.2');
 
 /*
@@ -198,6 +210,11 @@ class CodeIgniter {
  *  Define the CodeIgniter Branch (Core = TRUE, Reactor = FALSE)
  * ------------------------------------------------------
  */
+	/**
+	 * CodeIgniter Branch (Core = TRUE, Reactor = FALSE)
+	 *
+	 * @var string
+	 */
 	define('CI_CORE', FALSE);
 
 /*

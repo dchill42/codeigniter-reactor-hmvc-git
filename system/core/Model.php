@@ -32,7 +32,7 @@ class CI_Model {
 	 */
 	function __construct()
 	{
-		log_message('debug', "Model Class Initialized");
+		log_message('debug', 'Model Class Initialized');
 	}
 
 	/**
@@ -41,6 +41,7 @@ class CI_Model {
 	 * Allows models to access CI's loaded classes using the same
 	 * syntax as controllers.
 	 *
+	 * @param	string
 	 * @access private
 	 */
 	function __get($key)

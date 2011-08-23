@@ -30,8 +30,21 @@ class CI_Exceptions {
 	var $message;
 	var $filename;
 	var $line;
+
+	/**
+	 * Nesting level of the output buffering mechanism
+	 *
+	 * @var int
+	 * @access public
+	 */
 	var $ob_level;
 
+	/**
+	 * List if available error levels
+	 *
+	 * @var array
+	 * @access public
+	 */
 	var $levels = array(
 						E_ERROR				=>	'Error',
 						E_WARNING			=>	'Warning',
@@ -86,7 +99,8 @@ class CI_Exceptions {
 	 * Calls the 404 override method if configured, or displays a generic 404 error.
 	 *
 	 * @access	private
-	 * @param	string
+	 * @param	string	the page
+	 * @param 	bool	log error yes/no
 	 * @return	string
 	 */
 	function show_404($page = '', $log_error = TRUE)
@@ -112,7 +126,6 @@ class CI_Exceptions {
 	 * followed by any trailing segments of the override route. So, if the override
 	 * route was "errclass/method/one/two", the effect would be to call:
 	 *	errclass->method($heading, $message, "one", "two");
-	 * 
 	 *
 	 * @access	private
 	 * @param	string	the heading

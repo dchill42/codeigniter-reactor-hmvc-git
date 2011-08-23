@@ -27,19 +27,33 @@
  * @link		http://codeigniter.com/user_guide/libraries/config.html
  */
 class CI_Config {
+	/**
+	 * List of all loaded config values
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $config = array();
+
+	/**
+	 * List of all loaded config files
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $is_loaded = array();
+
+	/**
+	 * List of paths to search when trying to load a config file
+	 *
+	 * @var		array
+	 */
 	public $_config_paths = array(APPPATH);
 
 	/**
 	 * Constructor
 	 *
 	 * Sets the $config data from the primary config.php file as a class variable
-	 *
-	 * @param	string	the	config file name
-	 * @param	boolean	if configuration values should be loaded into their own section
-	 * @param	boolean	true if errors should just return false, false if an error message should be displayed
-	 * @return	boolean  if the file was successfully loaded or not
 	 */
 	public function __construct()
 	{

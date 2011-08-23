@@ -25,7 +25,18 @@
  * @link		http://codeigniter.com/user_guide/libraries/language.html
  */
 class CI_Lang {
+	/**
+	 * List of translations
+	 *
+	 * @var		array
+	 */
 	var $language	= array();
+
+	/**
+	 * List of loaded language files
+	 *
+	 * @var		array
+	 */
 	var $is_loaded	= array();
 
 	/**
@@ -46,6 +57,9 @@ class CI_Lang {
 	 * @access	public
 	 * @param	mixed	the name of the language file to be loaded. Can be an array
 	 * @param	string	the language (english, etc.)
+	 * @param	bool	return loaded array of translations
+	 * @param 	bool	add suffix to $langfile
+	 * @param 	string	alternative path to look for language file
 	 * @return	mixed
 	 */
 	function load($langfile = '', $idiom = '', $return = FALSE, $add_suffix = TRUE, $alt_path = '')
@@ -123,7 +137,7 @@ class CI_Lang {
 	 * Fetch a single line of text from the language array
 	 *
 	 * @access	public
-	 * @param	string	$line	the language line
+	 * @param	string	the language line
 	 * @return	string
 	 */
 	function line($line = '')

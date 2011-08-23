@@ -27,19 +27,84 @@
  * @link		http://codeigniter.com/user_guide/libraries/output.html
  */
 class CI_Output {
-    protected $CI;
-	protected $final_output;
-	protected $cache_expiration	= 0;
-	protected $headers			= array();
-	protected $mime_types		= array();
-	protected $enable_profiler	= FALSE;
-	protected $_zlib_oc			= FALSE;
-	protected $_profiler_sections = array();
-	protected $parse_exec_vars	= TRUE;	// whether or not to parse variables like {elapsed_time} and {memory_usage}
+	/**
+	 * CodeIgniter core
+	 *
+	 * @var		object
+	 * @access	protected
+	 */
+	protected $CI;
 
+	/**
+	 * Current output string
+	 *
+	 * @var		string
+	 * @access	protected
+	 */
+	protected $final_output;
+
+	/**
+	 * Cache expiration time
+	 *
+	 * @var		int
+	 * @access	protected
+	 */
+	protected $cache_expiration	= 0;
+
+	/**
+	 * List of server headers
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
+	protected $headers			= array();
+
+	/**
+	 * List of mime types
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
+	protected $mime_types		= array();
+
+	/**
+	 * Determines wether profiler is enabled
+	 *
+	 * @var		book
+	 * @access	protected
+	 */
+	protected $enable_profiler	= FALSE;
+
+	/**
+	 * Determines if output compression is enabled
+	 *
+	 * @var		bool
+	 * @access	protected
+	 */
+	protected $_zlib_oc			= FALSE;
+
+	/**
+	 * List of profiler sections
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
+	protected $_profiler_sections = array();
+
+	/**
+	 * Whether or not to parse variables like {elapsed_time} and {memory_usage}
+	 *
+	 * @var		bool
+	 * @access	protected
+	 */
+	protected $parse_exec_vars	= TRUE;
+
+	/**
+	 * Constructor
+	 */
 	function __construct()
 	{
-        // Get parent reference
+		// Get parent reference
 		$this->CI =& CodeIgniter::instance();
 
 		$this->_zlib_oc = @ini_get('zlib.output_compression');
@@ -124,6 +189,7 @@ class CI_Output {
 	 *
 	 * @access	public
 	 * @param	string
+	 * @param 	bool
 	 * @return	void
 	 */
 	function set_header($header, $replace = TRUE)
@@ -261,6 +327,7 @@ class CI_Output {
 	 * benchmark timer so the page rendering speed and memory usage can be shown.
 	 *
 	 * @access	public
+	 * @param 	string
 	 * @return	mixed
 	 */
 	function _display($output = '')
@@ -384,6 +451,7 @@ class CI_Output {
 	 * Write a Cache File
 	 *
 	 * @access	public
+	 * @param 	string
 	 * @return	void
 	 */
 	function _write_cache($output)
@@ -434,6 +502,8 @@ class CI_Output {
 	 * Update/serve a cached file
 	 *
 	 * @access	public
+	 * @param 	object	config class
+	 * @param 	object	uri class
 	 * @return	void
 	 */
 	function _display_cache(&$CFG, &$URI)

@@ -28,7 +28,11 @@
  * @link		http://codeigniter.com/user_guide/libraries/benchmark.html
  */
 class CI_Benchmark {
-
+	/**
+	 * List of all benchmark markers and when they were added
+	 *
+	 * @var array
+	 */
 	var $marker = array();
 
 	// --------------------------------------------------------------------
@@ -104,7 +108,6 @@ class CI_Benchmark {
 	{
 		return '{memory_usage}';
 	}
-
 }
 
 // END CI_Benchmark class

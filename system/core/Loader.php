@@ -28,20 +28,110 @@
  */
 class CI_Loader {
 	// All these are set automatically. Don't mess with them.
+	/**
+	 * CodeIgniter core
+	 *
+	 * @var		object
+	 * @access	protected
+	 */
 	protected $CI;
+
+	/**
+	 * Nesting level of the output buffering mechanism
+	 *
+	 * @var		int
+	 * @access	protected
+	 */
 	protected $_ci_ob_level;
+
+	/**
+	 * Autoload config array
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_autoload;
+
+	/**
+	 * List of paths to load libraries/helpers from
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_library_paths	= array();
+
+	/**
+	 * List of paths to load models/viewers/controllers from
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_mvc_paths		= array();
+
+	/**
+	 * List of loaded base classes
+	 * Set by the controller class
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_base_classes		= array(); // Set by the controller class
+
+	/**
+	 * List of cached variables
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_cached_vars		= array();
+
+	/**
+	 * List of loaded classes
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_classes			= array();
+
+	/**
+	 * List of loaded files
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_loaded_files		= array();
+
+	/*
+	 * List of loaded controllers
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_controllers		= array();
+
+	/*
+	 * List of loaded models
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_models			= array();
+
+	/**
+	 * List of loaded helpers
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $_ci_helpers			= array();
-	protected $_ci_varmap			= array('unit_test' => 'unit',
-											'user_agent' => 'agent');
+
+	/**
+	 * List of class name mappings
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
+	protected $_ci_varmap			= array('unit_test' => 'unit', 'user_agent' => 'agent');
 
 	/**
 	 * Constructor
@@ -98,7 +188,7 @@ class CI_Loader {
 	 *
 	 * It is mainly used in the form_helper -> _get_validation_object()
 	 *
-	 * @param		string	class	being checked for
+	 * @param		string	class being checked for
 	 * @return		mixed	class object name on the CI SuperObject or FALSE
 	 */
 	public function is_loaded($class)
@@ -528,6 +618,7 @@ class CI_Loader {
 	 * the controller class and its "view" files.
 	 *
 	 * @param	array
+	 * @param 	string
 	 * @return	void
 	 */
 	public function vars($vars = array(), $val = '')
@@ -730,7 +821,7 @@ class CI_Loader {
 	 * Prepends a parent path to the library, mvc, and config path arrays
 	 *
 	 * @param	string	path
-	 * @param		boolean	view cascade flag
+	 * @param	boolean	view cascade flag
 	 * @return	void
 	 */
 	public function add_package_path($path, $view_cascade = TRUE)
@@ -1131,6 +1222,7 @@ class CI_Loader {
 	 *
 	 * @param	string
 	 * @param	string
+	 * @param	bool
 	 * @param	string	an optional object name
 	 * @return	null
 	 */

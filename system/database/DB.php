@@ -21,6 +21,8 @@
  * @category	Database
  * @author		ExpressionEngine Dev Team
  * @link		http://codeigniter.com/user_guide/database/
+ * @param 		string
+ * @param 		bool	Determines if active record should be used or not
  */
 function &DB($params = '', $active_record_override = NULL)
 {

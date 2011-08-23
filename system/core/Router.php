@@ -27,11 +27,41 @@
  * @link		http://codeigniter.com/user_guide/general/routing.html
  */
 class CI_Router {
+	/**
+	 * CodeIgniter core
+	 *
+	 * @var		object
+	 * @access	protected
+	 */
 	protected $CI;
+
+	/**
+	 * List of routes
+	 *
+	 * @var		array
+	 * @access	public
+	 */
 	protected $routes;
+
+	/**
+	 * Stack of route data
+	 *
+	 * @var		array
+	 * @access	protected
+	 */
 	protected $route_stack;
+
+	/**
+	 * Default controller (and method if specific)
+	 *
+	 * @var		string
+	 * @access	public
+	 */
 	protected $default_controller;
 
+	/**
+	 * Route stack index constants
+	 */
 	const SEG_PATH = 0;
 	const SEG_SUBDIR = 1;
 	const SEG_CLASS = 2;
