@@ -69,7 +69,7 @@ class CI_Security {
 		}
 
 		// Set the CSRF hash
-		$this->csrf_set_hash();
+		$this->_csrf_set_hash();
 
 		$CI->log_message('debug', 'Security Class Initialized');
 	}
@@ -100,7 +100,7 @@ class CI_Security {
 
 		// Nothing should last forever
 		unset($_COOKIE[$this->csrf_cookie_name]);
-		$this->csrf_set_hash();
+		$this->_csrf_set_hash();
 		$this->csrf_set_cookie();
 
 		$this->CI->log_message('debug', 'CSRF token verified ');

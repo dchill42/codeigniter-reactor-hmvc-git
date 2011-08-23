@@ -88,11 +88,11 @@ class CI_DB_driver {
 	/**
 	 * Initialize Database Settings
 	 *
-	 * @access	protected	Called by the constructor
+	 * @access	public	Called by the constructor
 	 * @param	mixed
 	 * @return	void
 	 */
-	protected function initialize() {
+	public function initialize() {
 		// If an existing connection resource is available
 		// there is no need to connect and select the database
 		if (is_resource($this->conn_id) OR is_object($this->conn_id)) {

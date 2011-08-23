@@ -140,7 +140,7 @@ class CI_Output extends CI_CoreShare {
 			}
 		}
 
-		$this->headers[] = array('Content-Type: '.$mime_type$, TRUE);
+		$this->headers[] = array('Content-Type: '.$mime_type, TRUE);
 
 		return $this;
 	}

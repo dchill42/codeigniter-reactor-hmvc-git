@@ -89,8 +89,11 @@ class CI_Exceptions extends CI_CoreShare {
 				// Prepend exception to any remaining args
 				array_unshift($route, $error);
 
-				// Load object in core
-				$this->_call_core($this->CI, '_load', 'controller', $class, '', NULL, $subdir, $path);
+				// Load object in core as routed
+				if (isset($this->CI->routed)) {
+					unset($this->CI->routed);
+				}
+				$this->_call_core($this->CI, '_load', 'controller', $class, 'routed', NULL, $subdir, $path);
 
 				// Call controller method
 				if ($this->_call_core($this->CI, '_call_controller', $class, $method, $args)) {

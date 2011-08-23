@@ -56,7 +56,7 @@ p {
 <body>
 	<div id="container">
 		<h1><?php echo $error->getHeading(); ?></h1>
-		<?php echo $error->getMessage('<p>', '</p>'); ?>
+		<?php echo $error->getMessages('<p>', '</p>'); ?>
 	</div>
 </body>
 </html>

@@ -126,7 +126,7 @@ class CI_ShowError extends Exception {
 	 * @param	string	optional suffix tag
 	 * @return	mixed	wrapped message string if prefix/suffix given, otherwise message string or array
 	 */
-	public function getMessage($prefix = NULL, $suffix = NULL) {
+	public function getMessages($prefix = NULL, $suffix = NULL) {
 		// Check for empty arguments
 		if (is_null($prefix) && is_null($suffix)) {
 			// Just return message as-is
@@ -191,7 +191,7 @@ class CI_ShowError extends Exception {
  * @author		ExpressionEngine Dev Team
  */
 class CI_CoreShare {
-	const CLASSES = array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output', 'CI_Exceptions');
+	private $CLASSES = array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output', 'CI_Exceptions');
 
 	/**
 	 * Call protected core method
@@ -207,7 +207,7 @@ class CI_CoreShare {
 	 */
 	protected final function _call_core(CI_CoreShare $object, $method) {
 		// Restrict usage to specific classes
-		foreach (self::CLASSES as $class) {
+		foreach ($this->CLASSES as $class) {
 			if (is_a($this, $class)) {
 				// Call protected method of other Core object
 				return call_user_func_array(array($object, $method), array_slice(func_get_args(), 2));
@@ -319,7 +319,7 @@ class CodeIgniter extends CI_CoreShare {
 				// Get any autoloaded package paths
 				if (isset($autoload['packages'])) {
 					foreach ($autoload['packages'] as $package) {
-						$paths = array_unshift($paths, $package);
+						array_unshift($paths, $package);
 					}
 				}
 
@@ -335,8 +335,8 @@ class CodeIgniter extends CI_CoreShare {
 			self::$_ci_instance = new $class();
 
 			// Save config and autoload for run()
-			$self::$_ci_instance->_ci_config =& $config;
-			$self::$_ci_instance->_ci_autoload =& $autoload;
+			self::$_ci_instance->_ci_config =& $config;
+			self::$_ci_instance->_ci_autoload =& $autoload;
 		}
 
 		return self::$_ci_instance;
@@ -382,7 +382,7 @@ class CodeIgniter extends CI_CoreShare {
 			}
 
 			// Check if Benchmark is enabled
-			if ($this->config->item('enable_benchmarks')) {
+			if (isset($config['enable_benchmarks']) && $config['enable_benchmarks']) {
 				// Load Benchmark
 				$this->_load('core', 'Benchmark');
 
@@ -392,7 +392,7 @@ class CodeIgniter extends CI_CoreShare {
 			}
 
 			// Check if Hooks is enabled and needed
-			if ($this->config->item('enable_hooks')) {
+			if (isset($config['enable_hooks']) && $config['enable_hooks']) {
 				// Grab the "hooks" definition file.
 				$hooks = self::get_config('hooks.php', 'hook');
 				if (is_array($hooks) && count($hooks) > 0) {
@@ -653,7 +653,7 @@ class CodeIgniter extends CI_CoreShare {
 	 */
 	public function log_message($level = 'error', $message, $php_error = FALSE) {
 		// Check log threshold
-		if ($this->config->item('log_threshold') == 0) {
+		if (!isset($this->config) || $this->config->item('log_threshold') == 0) {
 			return;
 		}
 
@@ -715,7 +715,7 @@ class CodeIgniter extends CI_CoreShare {
 		$path = $this->_resolve_path($path);
 
 		// Prepend config file path
-		array_unshift(self::_ci_config_paths, $path);
+		array_unshift(self::$_ci_config_paths, $path);
 
 		// Prepend app path with view cascade param
 		$this->_ci_app_paths = array($path => $view_cascade) + $this->_ci_app_paths;
@@ -735,7 +735,7 @@ class CodeIgniter extends CI_CoreShare {
 		if ($path == '') {
 			// Shift last added path from each list
 			if ($remove_config_path) {
-				array_shift(self::_ci_config_paths);
+				array_shift(self::$_ci_config_paths);
 			}
 			array_shift($this->_ci_app_paths);
 			return;
@@ -750,8 +750,8 @@ class CodeIgniter extends CI_CoreShare {
 		}
 
 		// Unset path from config list
-		if ($remove_config_path && ($key = array_search($path, self::_ci_config_paths)) !== FALSE) {
-			unset(self::_ci_config_paths[$key]);
+		if ($remove_config_path && ($key = array_search($path, self::$_ci_config_paths)) !== FALSE) {
+			unset(self::$_ci_config_paths[$key]);
 		}
 
 		// Unset path from app list
@@ -830,7 +830,7 @@ class CodeIgniter extends CI_CoreShare {
 
 		// Merge arrays from all viable config paths
 		$_merged = array();
-		foreach (self::_ci_config_paths as $_path) {
+		foreach (self::$_ci_config_paths as $_path) {
 			// Check each variation
 			foreach ($_files as $_file) {
 				$_file_path = $_path.$_file;
@@ -901,7 +901,7 @@ class CodeIgniter extends CI_CoreShare {
 
 		// Create exception
 		$error = new CI_ShowError($errstr, 'A PHP Error Was Encountered', 500,
-			'Severity: '.$severity.' --> '.$errstr.' '.$errfile.' '.$errline, 'error_php');
+			'Severity: '.$errno.' --> '.$errstr.' '.$errfile.' '.$errline, 'error_php');
 
 		// Set severity and override file (with safely trimmed path) and line
 		$error->setSeverity($errno);
@@ -1348,7 +1348,7 @@ class CodeIgniter extends CI_CoreShare {
 		catch (CI_ShowError $ex) {
 			// Load failed - dump raw HTML output
 			$error->addMessage($ex->getMessage());
-			echo '<html><body><h1>'.$error->getHeading().'</h1>'.$error->getMessage('<p>', '</p>').'</body></html>';
+			echo '<html><body><h1>'.$error->getHeading().'</h1>'.$error->getMessages('<p>', '</p>').'</body></html>';
 		}
 	}
 }
@@ -1399,6 +1399,12 @@ function log_message($level, $message, $php_error = FALSE) {
 }
 
 // Load and run the application
+if (!isset($assign_to_config)) {
+	$assign_to_config = NULL;
+}
+if (!isset($routing)) {
+	$routing = NULL;
+}
 CodeIgniter::instance($assign_to_config)->run($routing);
 
 /* End of file CodeIgniter.php */

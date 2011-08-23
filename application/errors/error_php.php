@@ -3,7 +3,7 @@
 <h4><?php echo $error->getHeading(); ?></h4>
 
 <p>Severity: <?php echo $error->getSeverity(); ?></p>
-<p>Message:  <?php echo $error->getMessage('', ''); ?></p>
+<p>Message:  <?php echo $error->getMessages('', ''); ?></p>
 <p>Filename: <?php echo $error->getFile(); ?></p>
 <p>Line Number: <?php echo $error->getLine(); ?></p>
 

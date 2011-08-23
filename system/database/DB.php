@@ -86,7 +86,7 @@ function &DB($params = '', $active_record_override = NULL) {
 	}
 
 	// No DB specified yet? Beat them senseless...
-	if ( ! isset($params['dbdriver']) OR $params['dbdriver'] == '') {
+	if (!isset($params['dbdriver']) || $params['dbdriver'] == '') {
 		throw new CI_ShowError('You have not selected a database type to connect to.');
 	}
 
@@ -94,7 +94,6 @@ function &DB($params = '', $active_record_override = NULL) {
 	// we need to dynamically create a class that extends proper parent class
 	// based on whether we're using the active record class or not.
 	// Kudos to Paul for discovering this clever use of eval()
-
 	if ($active_record_override !== NULL) {
 		$active_record = $active_record_override;
 	}
@@ -104,15 +103,15 @@ function &DB($params = '', $active_record_override = NULL) {
 
 	require_once(BASEPATH.'database/DB_driver.php');
 
-	if ( ! isset($active_record) || $active_record == TRUE) {
+	if (!isset($active_record) || $active_record == TRUE) {
 		require_once(BASEPATH.'database/DB_active_rec.php');
 
-		if ( ! class_exists('CI_DB')) {
+		if (!class_exists('CI_DB')) {
 			eval('class CI_DB extends CI_DB_active_record { }');
 		}
 	}
 	else {
-		if ( ! class_exists('CI_DB')) {
+		if (!class_exists('CI_DB')) {
 			eval('class CI_DB extends CI_DB_driver { }');
 		}
 	}
