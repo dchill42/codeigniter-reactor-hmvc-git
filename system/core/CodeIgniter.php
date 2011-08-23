@@ -50,14 +50,24 @@ class CodeIgniter {
 			@set_time_limit(300);
 		}
 
+		log_message('debug', 'CodeIgniter Class Initialized');
+	}
+
+	/**
+	 * Initialize
+	 *
+	 * This function handles loading Config and Loader, which are special.
+	 * Loading them requires $instance to be set, so we can't do it in the ctor above.
+	 *
+	 * @return	void
+	 */
+	protected function _init() {
 		// Get Config and load constants
 		$this->load_core_class('Config');
 		$this->config->get('constants.php', NULL);
 
 		// Load Loader
 		$this->load =& load_class('Loader', 'core');
-
-		log_message('debug', 'CodeIgniter Class Initialized');
 	}
 
 	/**
@@ -156,6 +166,7 @@ class CodeIgniter {
 
 			// Instantiate object as subclass if defined, otherwise as base name
 			self::$instance = new $class();
+			self::$instance->_init();
 		}
 		return self::$instance;
 	}

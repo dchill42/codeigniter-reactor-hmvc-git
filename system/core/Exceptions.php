@@ -133,7 +133,8 @@ class CI_Exceptions {
 		}
 
 		// Check Router for an error (or 404) override
-		$route = $this->CI->router->get_error_route($status_code == 404);
+		$CI =& CodeIgniter::instance();
+		$route = $CI->router->get_error_route($status_code == 404);
 		if ($route !== FALSE) {
 			// Insert or append arguments
 			if (count($route) > CI_Router::SEG_ARGS) {
@@ -150,12 +151,16 @@ class CI_Exceptions {
 				$route[] = $message;
 			}
 
-			// Load the error Controller and call the method
-			// We pass a NULL for the object name to request fallback renaming attempts
-			// or a graceful failure to guarantee show_error() isn't called recursively.
-			if ($this->CI->load->controller($route, NULL)) {
+			// Ensure "routed" is not set
+			if (isset($CI->routed))
+			{
+				unset($CI->routed);
+			}
+
+			// Load the error Controller as "routed" and call the method
+			if ($CI->load->controller($route, 'routed')) {
 				// Display the output and exit
-				$this->CI->output->_display();
+				$CI->output->_display();
 				exit;
 			}
 		}
