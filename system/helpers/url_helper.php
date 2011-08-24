@@ -61,10 +61,10 @@ if ( ! function_exists('site_url'))
  */
 if ( ! function_exists('base_url'))
 {
-	function base_url($uri = '')
+	function base_url()
 	{
 		$CI =& get_instance();
-		return $CI->config->base_url($uri);
+		return $CI->config->slash_item('base_url');
 	}
 }
 

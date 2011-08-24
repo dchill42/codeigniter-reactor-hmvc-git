@@ -191,7 +191,8 @@ class CI_ShowError extends Exception {
  * @author		ExpressionEngine Dev Team
  */
 class CI_CoreShare {
-	private $CLASSES = array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output', 'CI_Exceptions');
+	private $CLASSES = array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output',
+        'CI_Exceptions', 'CI_Driver_Library');
 
 	/**
 	 * Call protected core method
@@ -319,12 +320,12 @@ class CodeIgniter extends CI_CoreShare {
 				// Get any autoloaded package paths
 				if (isset($autoload['packages'])) {
 					foreach ($autoload['packages'] as $package) {
-						array_unshift($paths, $package);
+						array_unshift($paths, rtrim($package, '\/').'/');
 					}
 				}
 
 				// Include source
-				$subclass = self::_include($paths, 'core/'.$pre, $pre, $class);
+				$subclass = self::_include($paths, 'core/'.$pre, array($pre), $class);
 				if ($subclass !== FALSE) {
 					// Set subclass to be instantiated
 					$class = $subclass;
@@ -979,20 +980,28 @@ class CodeIgniter extends CI_CoreShare {
 			return;
 		}
 
-		// Match type and set directory
+		// Match type and set directory and base class prefix(es)
 		switch ($type) {
 			case 'core':
-				$dir = $type.'/';
+				$dir = 'core/';
+                $prefix = array('CI_');
 				break;
 			case 'library':
 				$dir = 'libraries/';
+                $prefix = array('CI_', '');
 				break;
 			case 'helper':
+				$dir = 'helpers/';
+                $prefix = array();
+                break;
 			case 'model':
 			case 'controller':
 				$dir = $type.'s/';
-				$subclass = $class;
+				$subclass = array($dir, $subdir, $class);
+                $dir = 'core/';
+                $subdir = '';
 				$class = ucfirst($type);
+                $prefix = array('CI_');
 				break;
 			default:
 				throw new CI_ShowError('Invalid object type in load request: '.$type);
@@ -1006,16 +1015,11 @@ class CodeIgniter extends CI_CoreShare {
 
 		// Prepare search paths
 		$paths = array_keys($this->_ci_app_paths);
+        $basepaths = $paths;
 		$basepaths[] = BASEPATH;
 
-		// Set prefix - core classes start with 'CI_', others do not
-		$prefix = $type == 'core' ? 'CI_' : '';
-
-		// There is no class to test for in a helper
-		$test = ($type != 'helper');
-
 		// Load base class - this must be found for any load
-		$classnm = self::_include($basepaths, $dir.$subdir, $prefix, $class, $test);
+		$classnm = self::_include($basepaths, $dir.$subdir, $prefix, $class);
 		if ($classnm == FALSE) {
 			// Not found - see if a subdirectory was specified
 			switch ($subdir) {
@@ -1023,7 +1027,7 @@ class CodeIgniter extends CI_CoreShare {
 					// None - take one last stab at finding the class in its own subdirectory
 					// If found, the subdirectory will apply to the subclass search below, as well.
 					$subdir = strtolower($class).'/';
-					$classnm = self::_include($basepaths, $dir.$subdir, $prefix, $class, $test);
+					$classnm = self::_include($basepaths, $dir.$subdir, $prefix, $class);
 					if ($classnm !== FALSE) {
 						// Found it
 						break;
@@ -1041,7 +1045,7 @@ class CodeIgniter extends CI_CoreShare {
 		$subpre = $this->_ci_subclass_prefix;
 		if (!empty($subpre)) {
 			// Try loading the subclass - none found is not fatal
-			$extclass = self::_include($paths, $dir.$subdir.$subpre, $subpre, $class, $test);
+			$extclass = self::_include($paths, $dir.$subdir.$subpre, array($subpre), $class);
 			if ($extclass !== FALSE) {
 				// Subclass found - override class to instantiate
 				$classnm = $extclass;
@@ -1053,15 +1057,15 @@ class CodeIgniter extends CI_CoreShare {
 			// Check for routed path
 			if (empty($path)) {
 				// None - search as usual
-				$classnm = self::_include($paths, $dir.$subdir, '', $subclass);
+				$classnm = self::_include($paths, $subclass[0].$subclass[1], array(''), $subclass[2]);
 			}
 			else {
 				// Use routed path to include class
-				$file_path = $path.$dir.$subdir.$subclass.'.php';
+				$file_path = $path.implode('', $subclass).'.php';
 				if (file_exists($file_path)) {
 					// Include file and set class to instantiate
 					include($file_path);
-					$classnm = $subclass;
+					$classnm = $subclass[2];
 				}
 				else {
 					// Mark failure for error below
@@ -1072,13 +1076,13 @@ class CodeIgniter extends CI_CoreShare {
 			// Make sure we found the class
 			if ($classnm == FALSE) {
 				// No final class is a fatal error
-				$msg = ucfirst($type).' class '.$subclass.' could not be found';
+				$msg = ucfirst($type).' class '.$subclass[2].' could not be found';
 				throw new CI_ShowError($msg, '', 0, $msg);
 			}
 		}
 
 		// Get class name for _ci_loaded array
-		$name = isset($subclass) ? strtolower($subclass) : strtolower($class);
+		$name = isset($subclass) ? strtolower($subclass[2]) : strtolower($class);
 		if ($type == 'helper' || $obj_name === FALSE) {
 			// Mark class as loaded without name
 			$this->_ci_loaded[$name][] = TRUE;
@@ -1244,25 +1248,26 @@ class CodeIgniter extends CI_CoreShare {
 	 *
 	 * @param	array	path list
 	 * @param	string	subdirectory
-	 * @param	string	class prefix
+	 * @param	array	class prefixes
 	 * @param	string	class name
-	 * @param	boolean	FALSE to skip class_exists test
 	 * @return	mixed	class name with prefix if found, otherwise FALSE
 	 */
-	protected static function _include(array &$paths, $dir, $prefix, $class, $test = TRUE) {
-		// Assemble class name and see if class already exists
-		$classnm = $prefix.$class;
-		if ($test && class_exists($classnm)) {
-			// No need to include - return prefixed class
-			return $classnm;
-		}
+	protected static function _include(array &$paths, $dir, array $prefixes, $class) {
+		// Assemble class name and see if class already exists with any of the valid prefixes
+        $class = ucfirst($class);
+        foreach ($prefixes as $prefix) {
+            if (class_exists($prefix.$class)) {
+                // Already loaded - return prefixed class name
+                return $prefix.$class;
+            }
+        }
 
 		// Prepare case options with file extension
 		$file = strtolower($class).'.php';
 		$files = array(ucfirst($file), $file);
 
 		// Search each path
-		foreach ($paths as &$path) {
+		foreach ($paths as $path) {
 			// Append subdirectory
 			$path .= $dir;
 
@@ -1270,16 +1275,24 @@ class CodeIgniter extends CI_CoreShare {
 			foreach ($files as &$file) {
 				// See if file exists
 				if (file_exists($path.$file)) {
-					// Include file and check for class
+					// Include file
 					include($path.$file);
-					if (!$test || class_exists($classnm)) {
-						// Good - return prefixed class name
-						return $classnm;
+
+                    // No prefixes means don't test for class - just return name
+					if (empty($prefixes)) {
+                        return $class;
 					}
-					else {
-						// Bad file - fail out
-						return FALSE;
-					}
+
+                    // Test valid prefixes for defined class name
+                    foreach ($prefixes as $prefix) {
+                        if (class_exists($prefix.$class)) {
+                            // Found it - return prefixed class
+                            return $prefix.$class;
+                        }
+                    }
+
+                    // Bad file - fail out
+                    return FALSE;
 				}
 			}
 		}

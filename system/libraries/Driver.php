@@ -25,7 +25,7 @@
  * @author		EllisLab Dev Team
  * @link
  */
-class CI_Driver_Library extends CI_LoaderBase {
+class CI_Driver_Library extends CI_CoreShare {
 	protected $valid_drivers	= array();
 	protected $lib_name;
 
@@ -54,19 +54,19 @@ class CI_Driver_Library extends CI_LoaderBase {
 		$driver_name = strtolower(str_replace('CI_', '', $driver_class));
 
 		// Determine if driver is allowed
-		if ( ! in_array($driver_name, array_map('strtolower', $this->valid_drivers))) {
+		if (!in_array($driver_name, array_map('strtolower', $this->valid_drivers))) {
 			// The requested driver isn't valid!
 			$msg = 'Invalid driver requested: '.$driver_class;
 			throw new CI_ShowError($msg, '', 0, $msg);
 		}
 
 		// Check if driver is already defined
-		if ( ! class_exists($driver_class)) {
+		if (!class_exists($driver_class)) {
 			// Load driver as a library, but don't attach to CodeIgniter
-			$CI->_load_library($driver_name, $lib_name.'/drivers/', NULL, FALSE);
+			$this->_call_core($CI, '_load', 'library', $driver_name, '', NULL, $lib_name.'/drivers/');
 
 			// See if the driver class was found
-			if ( ! class_exists($driver_class)) {
+			if (!class_exists($driver_class)) {
 				$msg = 'Unable to load the requested driver: '.$driver_class;
 				throw new CI_ShowError($msg, '', 0, $msg);
 			}
