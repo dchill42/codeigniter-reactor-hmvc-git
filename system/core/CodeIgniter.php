@@ -99,6 +99,15 @@ class CI_ShowError extends Exception {
 	}
 
 	/**
+	 * Get error severity
+	 *
+	 * @return	string	error severity
+	 */
+	public function getSeverity() {
+		return $this->severity;
+	}
+
+	/**
 	 * Add error message
 	 *
 	 * Adds another message to the exception
@@ -161,12 +170,13 @@ class CI_ShowError extends Exception {
 	}
 
 	/**
-	 * Get error severity
+	 * Set error log message
 	 *
-	 * @return	string	error severity
+	 * @param	string	log message
+	 * @return	void
 	 */
-	public function getSeverity() {
-		return $this->severity;
+	public function setLogMsg($log_msg) {
+		$this->log_msg = $log_msg;
 	}
 
 	/**
@@ -176,6 +186,75 @@ class CI_ShowError extends Exception {
 	 */
 	public function getLogMsg() {
 		return $this->log_msg;
+	}
+
+	/**
+	 * Get pretty backtrace output
+	 *
+	 * @param	string	list tag (default: ol)
+	 * @param	string	item tag (default: li)
+	 * @return	string	backtrace output
+	 */
+	public function prettyTrace($list_tag = 'ol', $item_tag = 'li') {
+		// Determine item tags
+		$item_open = empty($item_tag) ? '' : '<'.$item_tag.'>';
+		$item_close = empty($item_tag) ? '' : '</'.$item_tag.'>';
+
+		// Start list output
+		$out = empty($list_tag) ? '' : '<'.$list_tag.'>';
+		foreach ($this->getTrace() as $trace) {
+			// Skip intermediary calls
+			switch ($trace['function']) {
+			case '_call_core':
+			case 'call_user_func':
+			case 'call_user_func_array':
+				// Don't include
+				break;
+			default:
+				// Assemble function name
+				$func = $trace['function'];
+				if (isset($trace['class']) && isset($trace['type'])) {
+					$func = $trace['class'].$trace['type'].$func;
+				}
+
+				// Assemble arguments
+				$args = isset($trace['args']) ? implode(', ', array_map(array($this, '_format_arg'), $trace['args']))
+					: '';
+
+				// Get filename and line if present
+				$file = (isset($trace['file']) && isset($trace['line'])) ?
+					'<br /><em>'.$trace['file'].':'.$trace['line'].'</em>' : '';
+
+				// Add to output
+				$out .= $item_open.'<strong>'.$func.'</strong>('.$args.')'.$file.$item_close;
+				break;
+			}
+		}
+		$out .= empty($list_tag) ? '' : '</'.$list_tag.'>';
+
+		return $out;
+	}
+
+	/**
+	 * Format trace argument
+	 *
+	 * This helper function is a callback for prettyTrace().
+	 * It formats function arguments to make them easy to read on the screen.
+	 *
+	 * @access	private
+	 * @param	mixed	argument to format
+	 * @return	string	formatted argument
+	 */
+	public function _format_arg($arg) {
+		// Apply formatting by argument type
+		switch (gettype($arg)) {
+		case 'string': return '"'.$arg.'"';
+		case 'integer': return strval($arg);
+		case 'boolean': return $arg ? 'true' : 'false';
+		case 'array': return 'array['.count($arg).']';
+		case 'object': return 'object';
+		default: return '';
+		}
 	}
 }
 
@@ -192,7 +271,7 @@ class CI_ShowError extends Exception {
  */
 class CI_CoreShare {
 	private $CLASSES = array('CodeIgniter', 'CI_Loader', 'CI_Router', 'CI_URI', 'CI_Hooks', 'CI_Output',
-        'CI_Exceptions', 'CI_Driver_Library');
+		'CI_Exceptions', 'CI_Driver_Library');
 
 	/**
 	 * Call protected core method
@@ -901,13 +980,15 @@ class CodeIgniter extends CI_CoreShare {
 		}
 
 		// Create exception
-		$error = new CI_ShowError($errstr, 'A PHP Error Was Encountered', 500,
-			'Severity: '.$errno.' --> '.$errstr.' '.$errfile.' '.$errline, 'error_php');
+		$error = new CI_ShowError($errstr, 'A PHP Error Was Encountered', 500, '', 'error_php');
 
 		// Set severity and override file (with safely trimmed path) and line
 		$error->setSeverity($errno);
 		$error->setFile(basename(dirname($errfile)).'/'.basename($errfile));
 		$error->setLine($errline);
+
+		// Set log message with translated severity
+		$error->setLogMsg('Severity: '.$error->getSeverity().' --> '.$errstr.' '.$errfile.' '.$errline);
 
 		// Pass to _display_error
 		$this->_display_error($error);
@@ -984,24 +1065,24 @@ class CodeIgniter extends CI_CoreShare {
 		switch ($type) {
 			case 'core':
 				$dir = 'core/';
-                $prefix = array('CI_');
+				$prefix = array('CI_');
 				break;
 			case 'library':
 				$dir = 'libraries/';
-                $prefix = array('CI_', '');
+				$prefix = array('CI_', '');
 				break;
 			case 'helper':
 				$dir = 'helpers/';
-                $prefix = array();
-                break;
+				$prefix = array();
+				break;
 			case 'model':
 			case 'controller':
 				$dir = $type.'s/';
 				$subclass = array($dir, $subdir, $class);
-                $dir = 'core/';
-                $subdir = '';
+				$dir = 'core/';
+				$subdir = '';
 				$class = ucfirst($type);
-                $prefix = array('CI_');
+				$prefix = array('CI_');
 				break;
 			default:
 				throw new CI_ShowError('Invalid object type in load request: '.$type);
@@ -1015,7 +1096,7 @@ class CodeIgniter extends CI_CoreShare {
 
 		// Prepare search paths
 		$paths = array_keys($this->_ci_app_paths);
-        $basepaths = $paths;
+		$basepaths = $paths;
 		$basepaths[] = BASEPATH;
 
 		// Load base class - this must be found for any load
@@ -1254,13 +1335,13 @@ class CodeIgniter extends CI_CoreShare {
 	 */
 	protected static function _include(array &$paths, $dir, array $prefixes, $class) {
 		// Assemble class name and see if class already exists with any of the valid prefixes
-        $class = ucfirst($class);
-        foreach ($prefixes as $prefix) {
-            if (class_exists($prefix.$class)) {
-                // Already loaded - return prefixed class name
-                return $prefix.$class;
-            }
-        }
+		$class = ucfirst($class);
+		foreach ($prefixes as $prefix) {
+			if (class_exists($prefix.$class)) {
+				// Already loaded - return prefixed class name
+				return $prefix.$class;
+			}
+		}
 
 		// Prepare case options with file extension
 		$file = strtolower($class).'.php';
@@ -1278,21 +1359,21 @@ class CodeIgniter extends CI_CoreShare {
 					// Include file
 					include($path.$file);
 
-                    // No prefixes means don't test for class - just return name
+					// No prefixes means don't test for class - just return name
 					if (empty($prefixes)) {
-                        return $class;
+						return $class;
 					}
 
-                    // Test valid prefixes for defined class name
-                    foreach ($prefixes as $prefix) {
-                        if (class_exists($prefix.$class)) {
-                            // Found it - return prefixed class
-                            return $prefix.$class;
-                        }
-                    }
+					// Test valid prefixes for defined class name
+					foreach ($prefixes as $prefix) {
+						if (class_exists($prefix.$class)) {
+							// Found it - return prefixed class
+							return $prefix.$class;
+						}
+					}
 
-                    // Bad file - fail out
-                    return FALSE;
+					// Bad file - fail out
+					return FALSE;
 				}
 			}
 		}
@@ -1363,6 +1444,7 @@ class CodeIgniter extends CI_CoreShare {
 			$error->addMessage($ex->getMessage());
 			echo '<html><body><h1>'.$error->getHeading().'</h1>'.$error->getMessages('<p>', '</p>').'</body></html>';
 		}
+		exit;
 	}
 }
 // END CodeIgniter class

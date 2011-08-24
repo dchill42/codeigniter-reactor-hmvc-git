@@ -96,7 +96,7 @@ class CI_Exceptions extends CI_CoreShare {
 				$this->_call_core($this->CI, '_load', 'controller', $class, 'routed', NULL, $subdir, $path);
 
 				// Call controller method
-				if ($this->_call_core($this->CI, '_call_controller', $class, $method, $args)) {
+				if ($this->_call_core($this->CI, '_call_controller', 'routed', $method, $route)) {
 					// Display the output and exit
 					$this->_call_core($this->CI->output, '_display');
 					return;
