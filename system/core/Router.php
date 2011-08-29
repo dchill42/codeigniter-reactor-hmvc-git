@@ -57,11 +57,11 @@ class CI_Router extends CI_CoreShare {
 	 * This function attempts to determine the path to the controller.
 	 * On success, a complete array of at least 4 segments is returned:
 	 *	array(
-	 *		0 => $path,	// Package path where Controller found
+	 *		0 => $path,		// Package path where Controller found
 	 *		1 => $subdir,	// Subdirectory, which may be ''
 	 *		2 => $class,	// Validated Controller class
 	 *		3 => $method,	// Method, which may be 'index'
-	 *		...			// Any remaining segments
+	 *		...				// Any remaining segments
 	 *	);
 	 *
 	 * @access	public
@@ -253,7 +253,7 @@ class CI_Router extends CI_CoreShare {
 		// Select route
 		$route = ($template == 'general' ? 'error' : $template).'_override';
 
-		// See if 404_override is defined
+		// See if override is defined
 		if (empty($this->routes[$route])) {
 			// No override to apply
 			return FALSE;
@@ -308,7 +308,7 @@ class CI_Router extends CI_CoreShare {
 			// Does the RegEx match?
 			if (preg_match('#^'.$key.'$#', $uri)) {
 				// Do we have a back-reference?
-				if (strpos($val, '$') !== FALSE AND strpos($key, '(') !== FALSE) {
+				if (strpos($val, '$') !== FALSE && strpos($key, '(') !== FALSE) {
 					$val = preg_replace('#^'.$key.'$#', $val, $uri);
 				}
 

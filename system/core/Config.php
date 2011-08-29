@@ -110,7 +110,7 @@ class CI_Config {
 		}
 		else {
 			// Merge config
-			$this->config = array_merge($this->config, $config);
+			$this->config = array_replace_recursive($this->config, $config);
 		}
 
 		// Mark file as loaded and log success
@@ -147,30 +147,27 @@ class CI_Config {
 	 * Fetch a config file item
 	 *
 	 * @param	string	the config item name
-	 * @param	string	the index name
+	 * @param	string	the section name
 	 * @return	string
 	 */
-	public function item($item, $index = '') {
-		if ($index == '') {
-			if ( ! isset($this->config[$item])) {
+	public function item($item, $section = '') {
+		// Check for section
+		if ($section == '') {
+			// Check for item
+			if (!isset($this->config[$item])) {
 				return FALSE;
 			}
 
-			$pref = $this->config[$item];
+			return $this->config[$item];
 		}
 		else {
-			if ( ! isset($this->config[$index])) {
+			// Check for item within section
+			if (!isset($this->config[$section][$item])) {
 				return FALSE;
 			}
 
-			if ( ! isset($this->config[$index][$item])) {
-				return FALSE;
-			}
-
-			$pref = $this->config[$index][$item];
+			return $this->config[$section][$item];
 		}
-
-		return $pref;
 	}
 
 	/**
@@ -181,10 +178,12 @@ class CI_Config {
 	 * @return	string
 	 */
 	public function slash_item($item) {
-		if ( ! isset($this->config[$item])) {
+		// Check for item
+		if (!isset($this->config[$item])) {
 			return FALSE;
 		}
 
+		// Return item with single trailins slash
 		return rtrim($this->config[$item], '/').'/';
 	}
 
@@ -196,31 +195,37 @@ class CI_Config {
 	 * @return	string
 	 */
 	public function site_url($uri = '') {
+		// Check for URI
 		if ($uri == '') {
 			return $this->slash_item('base_url').$this->item('index_page');
 		}
 
+		// Check for query string support
 		if ($this->item('enable_query_strings') == FALSE) {
+			// Implode multiple URIs
 			if (is_array($uri)) {
 				$uri = implode('/', $uri);
 			}
 
+			// Assemble URL
 			$index = $this->item('index_page') == '' ? '' : $this->slash_item('index_page');
 			$suffix = ($this->item('url_suffix') == FALSE) ? '' : $this->item('url_suffix');
 			return $this->slash_item('base_url').$index.trim($uri, '/').$suffix;
 		}
 		else {
+			// Combine multiple URIs with keys
 			if (is_array($uri)) {
-				$i = 0;
 				$str = '';
 				foreach ($uri as $key => $val) {
-					$prefix = ($i == 0) ? '' : '&';
-					$str .= $prefix.$key.'='.$val;
-					$i++;
+					if ($str != '') {
+						$str .= '&';
+					}
+					$str .= $key.'='.$val;
 				}
 				$uri = $str;
 			}
 
+			// Assemble URL with query string
 			return $this->slash_item('base_url').$this->item('index_page').'?'.$uri;
 		}
 	}

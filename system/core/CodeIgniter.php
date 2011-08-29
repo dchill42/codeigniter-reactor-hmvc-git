@@ -329,8 +329,9 @@ class CodeIgniter extends CI_CoreShare {
 		// Define a custom error handler so we can log PHP errors (except E_STRICT)
 		set_error_handler(array($this, '_exception_handler'), E_ALL);
 
+		// Kill magic quotes for earlier versions
 		if (!$this->is_php('5.3')) {
-			@set_magic_quotes_runtime(0); // Kill magic quotes
+			@set_magic_quotes_runtime(0);
 		}
 
 		// Set a liberal script execution time limit
@@ -683,7 +684,7 @@ class CodeIgniter extends CI_CoreShare {
 			@unlink($file);
 			return TRUE;
 		}
-		elseif ( ! is_file($file) || ($fp = @fopen($file, FOPEN_WRITE_CREATE)) === FALSE) {
+		elseif (!is_file($file) || ($fp = @fopen($file, FOPEN_WRITE_CREATE)) === FALSE) {
 			return FALSE;
 		}
 
@@ -784,27 +785,30 @@ class CodeIgniter extends CI_CoreShare {
 	/**
 	 * Add Package Path
 	 *
-	 * Prepends a parent path to the base, app, and config path arrays
+	 * Prepends a package path to the app and config path arrays
 	 *
 	 * @param	string	path
-	 * @param	boolean	view	cascade flag
+	 * @param	boolean	view cascade flag
+	 * @param	boolean	add to config path flag
 	 * @return	void
 	 */
-	public function add_package_path($path, $view_cascade = TRUE) {
+	public function add_package_path($path, $view_cascade = TRUE, $add_config_path = TRUE) {
 		// Resolve path
 		$path = $this->_resolve_path($path);
 
 		// Prepend config file path
-		array_unshift(self::$_ci_config_paths, $path);
+		if ($add_config_path) {
+			array_unshift(self::$_ci_config_paths, $path);
+		}
 
-		// Prepend app path with view cascade param
-		$this->_ci_app_paths = array($path => $view_cascade) + $this->_ci_app_paths;
+		// Append app path with view cascade param
+		$this->_ci_app_paths[$path] = $view_cascade;
 	}
 
 	/**
 	 * Remove Package Path
 	 *
-	 * Remove a path from the base, app, and config path arrays if it exists
+	 * Remove a path from the app and config path arrays if it exists
 	 * If no path is provided, the most recently added path is removed.
 	 *
 	 * @param	string	path
@@ -817,7 +821,7 @@ class CodeIgniter extends CI_CoreShare {
 			if ($remove_config_path) {
 				array_shift(self::$_ci_config_paths);
 			}
-			array_shift($this->_ci_app_paths);
+			array_pop($this->_ci_app_paths);
 			return;
 		}
 
@@ -1077,8 +1081,10 @@ class CodeIgniter extends CI_CoreShare {
 				break;
 			case 'model':
 			case 'controller':
-				$dir = $type.'s/';
-				$subclass = array($dir, $subdir, $class);
+				// Save original dir, subdir, and class as $subclass
+				$subclass = array($type.'s/', $subdir, $class);
+
+				// Set up base class search
 				$dir = 'core/';
 				$subdir = '';
 				$class = ucfirst($type);
@@ -1245,7 +1251,7 @@ class CodeIgniter extends CI_CoreShare {
 					break;
 				}
 
-				if ( ! $cascade) {
+				if (!$cascade) {
 					break;
 				}
 			}

@@ -38,7 +38,7 @@ class CI_Hooks extends CI_CoreShare {
 	 */
 	public function __construct(CodeIgniter $CI, array $hooks) {
 		$this->hooks = $hooks;
-		// Note: Do not log messages from this constructor.
+		$CI->log_message('debug', 'Hooks Class Initialized');
 	}
 
 	/**
@@ -79,7 +79,7 @@ class CI_Hooks extends CI_CoreShare {
 	 * @return	bool
 	 */
 	protected function _run_hook($data) {
-		if ( ! is_array($data)) {
+		if (!is_array($data)) {
 			return FALSE;
 		}
 
@@ -100,9 +100,9 @@ class CI_Hooks extends CI_CoreShare {
 		}
 
 		// Set class/function name
-		$class		= FALSE;
-		$function	= FALSE;
-		$params		= '';
+		$class = FALSE;
+		$function = FALSE;
+		$params = '';
 		if (isset($data['class']) AND $data['class'] != '') {
 			$class = $data['class'];
 		}

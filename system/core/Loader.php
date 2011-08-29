@@ -93,14 +93,14 @@ class CI_Loader extends CI_CoreShare {
 	 * @return	void
 	 */
 	public function driver($class, array $params = NULL, $obj_name = NULL) {
-		if ( ! class_exists('CI_Driver_Library')) {
+		if (!class_exists('CI_Driver_Library')) {
 			// we aren't instantiating an object here, that'll be done by the Library itself
 			require BASEPATH.'libraries/Driver.php';
 		}
 
 		// We can save the loader some time since Drivers will *always* be in a subfolder,
 		// and typically identically named to the library
-		if ( ! strpos($class, '/')) {
+		if (!strpos($class, '/')) {
 			$class = ucfirst($class).'/'.$class;
 		}
 
@@ -233,7 +233,7 @@ class CI_Loader extends CI_CoreShare {
 		$subdir = $this->_get_path($class);
 
 		// Load database if needed
-		if ($db_conn !== FALSE AND ! class_exists('CI_DB')) {
+		if ($db_conn !== FALSE && !class_exists('CI_DB')) {
 			if ($db_conn === TRUE) {
 				$db_conn = '';
 			}
@@ -343,7 +343,7 @@ class CI_Loader extends CI_CoreShare {
 	 * @return	void
 	 */
 	public function dbutil() {
-		if ( ! class_exists('CI_DB')) {
+		if (!class_exists('CI_DB')) {
 			$this->database();
 		}
 
@@ -365,7 +365,7 @@ class CI_Loader extends CI_CoreShare {
 	 * @return	void
 	 */
 	public function dbforge() {
-		if ( ! class_exists('CI_DB')) {
+		if (!class_exists('CI_DB')) {
 			$this->database();
 		}
 
@@ -434,21 +434,22 @@ class CI_Loader extends CI_CoreShare {
 	/**
 	 * Add Package Path
 	 *
-	 * Prepends a package path to the library, mvc, and config path arrays
+	 * Adds a package path to the list
 	 *
 	 * @param	string	path
 	 * @param 	boolean view cascade flag
+	 * @param	boolean	add to config path flag
 	 * @return	void
 	 */
-	public function add_package_path($path, $view_cascade = TRUE) {
+	public function add_package_path($path, $view_cascade = TRUE, $add_config_path = TRUE) {
 		// Pass arguments to core method
-		$this->CI->add_package_path($path, $view_cascade);
+		$this->CI->add_package_path($path, $view_cascade, $add_config_path);
 	}
 
 	/**
 	 * Remove Package Path
 	 *
-	 * Remove a path from the library, mvc, and config path arrays if it exists
+	 * Remove a package path from the list
 	 * If no path is provided, the most recently added path is removed.
 	 *
 	 * @param	string	path
@@ -492,7 +493,7 @@ class CI_Loader extends CI_CoreShare {
 
 		// A little tweak to remain backward compatible
 		// The $autoload['core'] item was deprecated
-		if ( ! isset($autoload['libraries']) && isset($autoload['core'])) {
+		if (!isset($autoload['libraries']) && isset($autoload['core'])) {
 			$autoload['libraries'] = $autoload['core'];
 		}
 
